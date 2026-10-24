@@ -1,6 +1,5 @@
 "use client"
 
-import { Suspense } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -20,20 +19,10 @@ const TABS = [
 ]
 
 export function BottomNav() {
-  // On dynamic routes the pathname is only known at request time, so the
-  // prerendered shell shows the bar without an active tab.
-  return (
-    <Suspense fallback={<NavBar pathname={null} />}>
-      <ActiveNavBar />
-    </Suspense>
-  )
-}
-
-function ActiveNavBar() {
   return <NavBar pathname={usePathname()} />
 }
 
-function NavBar({ pathname }: { pathname: string | null }) {
+function NavBar({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="Main"
@@ -41,7 +30,7 @@ function NavBar({ pathname }: { pathname: string | null }) {
     >
       <ul className="mx-auto grid max-w-md grid-cols-5">
         {TABS.map(({ href, label, Icon }) => {
-          const active = !!pathname && (pathname === href || pathname.startsWith(`${href}/`))
+          const active = pathname === href || pathname.startsWith(`${href}/`)
           return (
             <li key={href}>
               <Link
