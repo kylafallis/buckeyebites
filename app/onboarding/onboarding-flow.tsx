@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { CheckIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
 import { ALLERGENS, DIETS, MODES, NUTRIENTS } from "@/lib/preferences"
@@ -20,6 +19,28 @@ export type OnboardingValues = {
   goals: Record<string, unknown>
 }
 
+const SAVE_TIMEOUT_MS = 15_000
+
+/** Rejects if `promise` takes longer than `ms`, so a stalled request can't hang the UI. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("Saving is taking too long. Check your connection and tap the button again.")),
+      ms
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
+
 const STEPS = [
   { title: "Any diet we should know about?", subtitle: "We'll only show food that fits." },
   { title: "Any food allergies?", subtitle: "Pick all that apply. Items with these are hidden." },
@@ -29,7 +50,6 @@ const STEPS = [
 ]
 
 export function OnboardingFlow({ userId, initial }: { userId: string; initial: OnboardingValues }) {
-  const router = useRouter()
   const [step, setStep] = useState(0)
   const [values, setValues] = useState(initial)
   const [protein, setProtein] = useState(
@@ -113,20 +133,29 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
     setSaving(true)
     setError(null)
-    const failed = await save()
-    if (failed) {
-      setError(`Couldn't save: ${failed}`)
-      setSaving(false)
-      return
-    }
+    let leaving = false
+    try {
+      const failed = await withTimeout(save(), SAVE_TIMEOUT_MS)
+      if (failed) {
+        setError(`Couldn't save: ${failed}`)
+        return
+      }
 
-    if (step === STEPS.length - 1) {
-      router.replace("/dashboard")
-      router.refresh()
-      return
+      if (step === STEPS.length - 1) {
+        // A full page load (not a client-side route change) so the route check
+        // reads the freshly saved onboarded flag and can't bounce us back here.
+        leaving = true
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload is intended
+        window.location.assign("/dashboard")
+        return
+      }
+      setStep((s) => s + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong. Please try again.")
+    } finally {
+      // Never leave the button stuck on "Saving…" unless we're navigating away.
+      if (!leaving) setSaving(false)
     }
-    setSaving(false)
-    setStep((s) => s + 1)
   }
 
   function back() {
