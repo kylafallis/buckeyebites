@@ -63,7 +63,8 @@ export async function updateSession(request: NextRequest) {
   if (!onboarded) {
     return pathname === "/onboarding" ? response : redirectTo("/onboarding")
   }
-  if (["/", "/login", "/signup", "/onboarding"].includes(pathname)) {
+  // Onboarded users may revisit /onboarding (the "Me" tab) to edit preferences.
+  if (["/", "/login", "/signup"].includes(pathname)) {
     return redirectTo("/dashboard")
   }
 
