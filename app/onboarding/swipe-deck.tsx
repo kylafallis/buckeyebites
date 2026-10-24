@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion"
 import { HeartIcon, XIcon } from "@phosphor-icons/react"
-import { createClient } from "@/lib/supabase/client"
 import type { MenuItem } from "@/lib/menu-shared"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,8 @@ import { loadSwipeItems } from "./actions"
 const SWIPE_DISTANCE = 100
 const SWIPE_VELOCITY = 500
 
-export function SwipeDeck({ userId }: { userId: string }) {
+/** Shows the deck and reports each swipe; the parent saves them all on Finish. */
+export function SwipeDeck({ onSwipe }: { onSwipe: (menuItemId: number, liked: boolean) => void }) {
   const [items, setItems] = useState<MenuItem[] | null>(null)
   const [index, setIndex] = useState(0)
   const [direction, setDirection] = useState(0)
@@ -24,16 +24,12 @@ export function SwipeDeck({ userId }: { userId: string }) {
       .catch(() => setError("Couldn't load menu items."))
   }, [])
 
-  async function swipe(liked: boolean) {
+  function swipe(liked: boolean) {
     const item = items?.[index]
     if (!item) return
     setDirection(liked ? 1 : -1)
     setIndex((i) => i + 1)
-
-    const { error } = await createClient()
-      .from("food_swipes")
-      .upsert({ user_id: userId, menu_item_id: item.id, liked })
-    if (error) setError("Some swipes didn't save. You can keep going.")
+    onSwipe(item.id, liked)
   }
 
   if (error && !items) return <Message title="Menu loading soon" body={error} />

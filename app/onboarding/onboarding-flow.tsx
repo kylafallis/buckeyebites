@@ -20,6 +20,15 @@ export type OnboardingValues = {
   goals: Record<string, unknown>
 }
 
+const SAVE_TIMEOUT_MS = 15_000
+
+class SaveError extends Error {}
+
+/** Throws a SaveError for a failed Supabase write. */
+function check({ error }: { error: { message: string } | null }) {
+  if (error) throw new SaveError(error.message)
+}
+
 const STEPS = [
   { title: "Any diet we should know about?", subtitle: "We'll only show food that fits." },
   { title: "Any food allergies?", subtitle: "Pick all that apply. Items with these are hidden." },
@@ -37,6 +46,8 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Swipes are kept here and saved in one write when the user taps Finish.
+  const [swipes, setSwipes] = useState<Map<number, boolean>>(() => new Map())
 
   const set = <K extends keyof OnboardingValues>(key: K, value: OnboardingValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }))
@@ -61,49 +72,88 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
     return null
   }
 
-  async function save(): Promise<string | null> {
+  /** Saves the current step. Every write is an upsert so a retry never fails on duplicates. */
+  async function save(signal: AbortSignal) {
     const supabase = createClient()
     const upsertProfile = async (fields: Record<string, unknown>) =>
-      (await supabase.from("profiles").upsert({ id: userId, ...fields })).error
+      check(await supabase.from("profiles").upsert({ id: userId, ...fields }).abortSignal(signal))
+
+    const saveAllergens = async () => {
+      if (values.allergens.length > 0) {
+        check(
+          await supabase
+            .from("user_allergens")
+            .upsert(
+              values.allergens.map((allergen) => ({ user_id: userId, allergen })),
+              { onConflict: "user_id,allergen", ignoreDuplicates: true }
+            )
+            .abortSignal(signal)
+        )
+      }
+      // Then remove any the user unchecked.
+      let removed = supabase.from("user_allergens").delete().eq("user_id", userId)
+      if (values.allergens.length > 0) {
+        removed = removed.not("allergen", "in", `(${values.allergens.join(",")})`)
+      }
+      check(await removed.abortSignal(signal))
+    }
+
+    const saveSwipes = async () => {
+      if (swipes.size === 0) return
+      // Skip items that were removed from the menu since the deck loaded.
+      const ids = [...swipes.keys()]
+      const existing = await supabase.from("menu_items").select("id").in("id", ids).abortSignal(signal)
+      check(existing)
+      const live = new Set((existing.data ?? []).map((row) => row.id))
+      const rows = ids
+        .filter((id) => live.has(id))
+        .map((id) => ({ user_id: userId, menu_item_id: id, liked: swipes.get(id)! }))
+      if (rows.length === 0) return
+      // A later swipe on the same item replaces the earlier one.
+      check(
+        await supabase
+          .from("food_swipes")
+          .upsert(rows, { onConflict: "user_id,menu_item_id" })
+          .abortSignal(signal)
+      )
+    }
+
+    const goals = { ...values.goals }
+    if (values.mode === "macros") goals.protein_g = Number(protein)
+    else delete goals.protein_g
+    const preferences = {
+      diet: values.diet,
+      meals_per_day: values.mealsPerDay,
+      snacks_per_day: values.snacksPerDay,
+      desserts_per_day: values.dessertsPerDay,
+      mode: values.mode,
+      focus_nutrients: values.mode === "nutrients" ? values.focusNutrients : [],
+      goals,
+    }
 
     switch (step) {
       case 0:
-        return (await upsertProfile({ diet: values.diet }))?.message ?? null
-      case 1: {
-        const del = await supabase.from("user_allergens").delete().eq("user_id", userId)
-        if (del.error) return del.error.message
-        if (values.allergens.length === 0) return null
-        const ins = await supabase
-          .from("user_allergens")
-          .insert(values.allergens.map((allergen) => ({ user_id: userId, allergen })))
-        return ins.error?.message ?? null
-      }
+        return upsertProfile({ diet: values.diet })
+      case 1:
+        return saveAllergens()
       case 2:
-        return (
-          (
-            await upsertProfile({
-              meals_per_day: values.mealsPerDay,
-              snacks_per_day: values.snacksPerDay,
-              desserts_per_day: values.dessertsPerDay,
-            })
-          )?.message ?? null
-        )
-      case 3: {
-        const goals = { ...values.goals }
-        if (values.mode === "macros") goals.protein_g = Number(protein)
-        else delete goals.protein_g
-        return (
-          (
-            await upsertProfile({
-              mode: values.mode,
-              focus_nutrients: values.mode === "nutrients" ? values.focusNutrients : [],
-              goals,
-            })
-          )?.message ?? null
-        )
-      }
+        return upsertProfile({
+          meals_per_day: values.mealsPerDay,
+          snacks_per_day: values.snacksPerDay,
+          desserts_per_day: values.dessertsPerDay,
+        })
+      case 3:
+        return upsertProfile({
+          mode: preferences.mode,
+          focus_nutrients: preferences.focus_nutrients,
+          goals: preferences.goals,
+        })
       default:
-        return (await upsertProfile({ onboarded: true }))?.message ?? null
+        // Re-save everything so a retry after a partial failure is complete,
+        // and mark onboarded only once the rest has saved.
+        await saveAllergens()
+        await saveSwipes()
+        return upsertProfile({ ...preferences, onboarded: true })
     }
   }
 
@@ -113,16 +163,30 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
     setSaving(true)
     setError(null)
-    const failed = await save()
-    if (failed) {
-      setError(`Couldn't save: ${failed}`)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), SAVE_TIMEOUT_MS)
+    try {
+      await save(controller.signal)
+    } catch (e) {
+      setError(
+        controller.signal.aborted
+          ? "Saving took too long. Check your connection and try again."
+          : e instanceof SaveError
+            ? `Couldn't save: ${e.message}`
+            : "Couldn't save. Check your connection and try again."
+      )
       setSaving(false)
       return
+    } finally {
+      clearTimeout(timer)
     }
 
     if (step === STEPS.length - 1) {
+      // Don't call router.refresh() here: it re-fetches /onboarding and
+      // cancels this navigation, leaving the button stuck on "Saving…".
       router.replace("/dashboard")
-      router.refresh()
+      // Fallback if the client-side navigation stalls.
+      setTimeout(() => window.location.assign("/dashboard"), 5_000)
       return
     }
     setSaving(false)
@@ -243,7 +307,9 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
           </div>
         )}
 
-        {step === 4 && <SwipeDeck userId={userId} />}
+        {step === 4 && (
+          <SwipeDeck onSwipe={(id, liked) => setSwipes((m) => new Map(m).set(id, liked))} />
+        )}
 
         {error && (
           <p className="mt-4 text-sm text-destructive" role="alert">
