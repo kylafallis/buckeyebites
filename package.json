@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:scott": "node --env-file=.env.local scripts/seed-scott.mjs",
+    "seed:scott:remove": "node --env-file=.env.local scripts/seed-scott.mjs --remove"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
