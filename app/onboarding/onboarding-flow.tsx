@@ -185,7 +185,8 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
       // Don't call router.refresh() here: it re-fetches /onboarding and
       // cancels this navigation, leaving the button stuck on "Saving…".
       router.replace("/dashboard")
-      // Fallback if the client-side navigation stalls.
+      // Fallback if the client-side navigation stalls, so the button is never stuck.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       setTimeout(() => window.location.assign("/dashboard"), 5_000)
       return
     }
