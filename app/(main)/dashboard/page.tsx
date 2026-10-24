@@ -4,11 +4,13 @@ import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { FeedMeButton } from "./feed-me-button"
 
 export const metadata: Metadata = {
   title: "Dashboard · BuckeyeBites",
@@ -32,6 +34,9 @@ export default function DashboardPage() {
             </Suspense>
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <FeedMeButton />
+        </CardContent>
         <CardFooter>
           <form action="/auth/signout" method="post">
             <Button type="submit" variant="outline">

@@ -46,12 +46,16 @@ export async function updateSession(request: NextRequest) {
     return redirect
   }
 
+  const isApi = pathname.startsWith("/api/")
+
   if (!userId) {
+    if (isApi) return Response.json({ error: "Not signed in" }, { status: 401 })
     return isPublic(pathname) ? response : redirectTo("/login")
   }
 
-  // The callback and sign-out routes handle their own redirects.
-  if (pathname.startsWith("/auth/")) return response
+  // The callback and sign-out routes handle their own redirects; API routes
+  // return JSON and check auth themselves.
+  if (pathname.startsWith("/auth/") || isApi) return response
 
   const { data: profile } = await supabase
     .from("profiles")
