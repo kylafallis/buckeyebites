@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { CheckIcon, CircleNotchIcon } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
 import { requestPlate } from "@/lib/request-plate"
-import type { MealPeriod } from "@/lib/menu"
+import type { MealPeriod } from "@/lib/menu-shared"
 import type { Totals } from "@/lib/totals"
 import { Button } from "@/components/ui/button"
 
@@ -48,7 +48,8 @@ export function PlateActions({
     run(setLogged, () =>
       createClient()
         .from("meal_logs")
-        .insert({ user_id: userId, meal_period: meal, recipe_id: recipeId, totals })
+        // eaten_on defaults to the database's (UTC) date, so set the Columbus date.
+        .insert({ user_id: userId, eaten_on: planDate, meal_period: meal, recipe_id: recipeId, totals })
     )
 
   const save = () =>

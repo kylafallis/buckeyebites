@@ -3,7 +3,9 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { WarningIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
-import { getSafeItems, MEAL_PERIODS, todayInColumbus, type MealPeriod, type MenuItem } from "@/lib/menu"
+import { getSafeItems } from "@/lib/menu.server"
+import { MEAL_PERIODS, todayInColumbus, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
+import { NutrientBadges } from "@/components/nutrient-badges"
 import { computeTotals, TOTAL_FIELDS, totalsForMode } from "@/lib/totals"
 import { PlateActions } from "./plate-actions"
 
@@ -120,6 +122,7 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
                   <li key={item.id} className="text-sm font-medium">
                     {item.name}
                     {servings !== 1 && <span className="text-muted-foreground"> × {servings}</span>}
+                    <NutrientBadges tags={item.nutrient_tags} className="mt-0.5 font-normal" />
                   </li>
                 ))}
               </ul>

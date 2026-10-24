@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react"
 import { CaretRightIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
-import type { MealPeriod, MenuItem } from "@/lib/menu"
+import type { MealPeriod, MenuItem } from "@/lib/menu-shared"
 import { ALLERGENS, labelFor } from "@/lib/preferences"
+import { NutrientBadges } from "@/components/nutrient-badges"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -143,6 +144,7 @@ export function MenuBrowser({
                           {item.diet_tags.filter((t) => !t.startsWith("contains_")).map(tagLabel).join(" · ")}
                         </span>
                       )}
+                      <NutrientBadges tags={item.nutrient_tags} className="mt-1" />
                     </span>
                     {showCalories && item.calories != null && (
                       <span className="text-xs text-muted-foreground tabular-nums">
@@ -212,6 +214,7 @@ function ItemDetails({ item, showCalories }: { item: MenuItem; showCalories: boo
           <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Nutrition
           </h3>
+          <NutrientBadges tags={item.nutrient_tags} className="mb-2" />
           <dl className="divide-y border-y text-sm">
             {rows.map(([label, value, unit]) => (
               <div key={label} className="flex justify-between py-1.5">

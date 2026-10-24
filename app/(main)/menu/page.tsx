@@ -2,7 +2,8 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { currentMealPeriod, getSafeItems, MEAL_PERIODS, todayInColumbus } from "@/lib/menu"
+import { getSafeItems } from "@/lib/menu.server"
+import { currentMealPeriod, MEAL_PERIODS, todayInColumbus } from "@/lib/menu-shared"
 import { MenuBrowser } from "./menu-browser"
 
 export const metadata: Metadata = {

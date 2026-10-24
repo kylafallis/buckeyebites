@@ -1,7 +1,8 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { getSafeItems, MEAL_PERIODS, todayInColumbus, type MenuItem } from "@/lib/menu"
+import { getSafeItems } from "@/lib/menu.server"
+import { MEAL_PERIODS, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
 
 const DECK_SIZE = 15
 

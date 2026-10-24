@@ -1,4 +1,4 @@
-import type { MenuItem } from "@/lib/menu"
+import type { MenuItem } from "@/lib/menu-shared"
 
 export const TOTAL_FIELDS = {
   calories: { label: "Calories", unit: "" },
@@ -45,7 +45,11 @@ export function focusField(nutrient: string): TotalKey | undefined {
 export function totalsForMode(mode: string, focusNutrients: string[]): TotalKey[] {
   if (mode === "macros") return ["calories", "protein_g", "carbs_g", "fat_g"]
   if (mode === "nutrients") {
-    const focus = focusNutrients.map(focusField).filter((k): k is TotalKey => !!k)
+    // The menu sheet has no iron, calcium or vitamin D amounts; those show as
+    // nutrient_tags badges on each item instead of totals.
+    const focus = focusNutrients
+      .map(focusField)
+      .filter((k): k is TotalKey => !!k && !["iron_mg", "calcium_mg", "vit_d_mcg"].includes(k))
     return [...new Set<TotalKey>(["protein_g", ...focus])]
   }
   return ["protein_g", "carbs_g", "fat_g", "fiber_g"]

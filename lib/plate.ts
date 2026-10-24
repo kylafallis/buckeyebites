@@ -1,14 +1,16 @@
+import "server-only"
 import { GoogleGenAI } from "@google/genai"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getSafeItems } from "@/lib/menu.server"
 import {
   currentMealPeriod,
-  getSafeItems,
+  NUTRIENT_TAGS,
   SCOTT_SLUG,
   todayInColumbus,
   type MealPeriod,
   type MenuItem,
-} from "@/lib/menu"
+} from "@/lib/menu-shared"
 import { PLATE_SYSTEM_PROMPT } from "@/lib/prompts"
 import { computeTotals, focusField } from "@/lib/totals"
 
@@ -73,7 +75,7 @@ async function loadContext(supabase: SupabaseClient, userId: string): Promise<Co
       .maybeSingle(),
     supabase.from("user_allergens").select("allergen").eq("user_id", userId),
     supabase.from("food_swipes").select("liked, menu_items(name)").eq("user_id", userId),
-    getSafeItems(userId, meal, todayInColumbus()),
+    getSafeItems(userId, meal, todayInColumbus(), { forPlate: true }),
   ])
   if (profile.error) throw profile.error
   if (allergens.error) throw allergens.error
@@ -119,6 +121,7 @@ function userPrompt(ctx: Context) {
     iron_mg: i.iron_mg,
     calcium_mg: i.calcium_mg,
     fiber_g: i.fiber_g,
+    nutrient_tags: i.nutrient_tags,
   }))
   return [
     `MEAL: ${ctx.meal}`,
@@ -212,36 +215,61 @@ function walkingOrder(proposed: string[], items: Plate["items"]) {
 // Rough daily references, only used to rank curated fallbacks.
 const DAILY_REFERENCE: Record<string, number> = { iron_mg: 18, calcium_mg: 1300, fiber_g: 28, vit_d_mcg: 20 }
 
-/** Best curated recipe whose items are all safe for this user right now. */
-async function curatedFallback(supabase: SupabaseClient, ctx: Context): Promise<number | null> {
+export type CuratedPlate = { id: number; title: string | null; parts: { item: MenuItem; servings: number }[] }
+
+/**
+ * Curated recipes whose items are all in `items`. Pass items from
+ * getSafeItems(..., { forPlate: true }) so every plate is safe for the user.
+ */
+export async function safeCuratedPlates(supabase: SupabaseClient, items: MenuItem[]): Promise<CuratedPlate[]> {
   const { data, error } = await supabase
     .from("recipes")
-    .select("id, recipe_items(menu_item_id, servings)")
+    .select("id, title, recipe_items(menu_item_id, servings)")
     .eq("source", "curated")
-  if (error || !data) return null
+    .order("id")
+  if (error) throw error
 
-  const byId = new Map(ctx.items.map((i) => [i.id, i]))
-  let best: { id: number; score: number } | null = null
-
-  for (const recipe of data as { id: number; recipe_items: { menu_item_id: number; servings: number }[] }[]) {
+  const byId = new Map(items.map((i) => [i.id, i]))
+  const plates: CuratedPlate[] = []
+  for (const recipe of data as {
+    id: number
+    title: string | null
+    recipe_items: { menu_item_id: number; servings: number | null }[]
+  }[]) {
     if (recipe.recipe_items.length === 0) continue
     const parts = recipe.recipe_items.map((ri) => ({ item: byId.get(ri.menu_item_id), servings: ri.servings ?? 1 }))
     if (parts.some((p) => !p.item)) continue
+    plates.push({ id: recipe.id, title: recipe.title, parts: parts as CuratedPlate["parts"] })
+  }
+  return plates
+}
 
-    const plateParts = parts as { item: MenuItem; servings: number }[]
-    const totals = computeTotals(plateParts)
+/** Best curated recipe whose items are all safe for this user right now. */
+async function curatedFallback(supabase: SupabaseClient, ctx: Context): Promise<number | null> {
+  let plates: CuratedPlate[]
+  try {
+    plates = await safeCuratedPlates(supabase, ctx.items)
+  } catch {
+    return null
+  }
+
+  let best: { id: number; score: number } | null = null
+  for (const { id, parts } of plates) {
+    const totals = computeTotals(parts)
     let score = 0
-    for (const { item } of plateParts) {
+    for (const { item } of parts) {
       if (ctx.likes.includes(item.name)) score += 2
       if (ctx.dislikes.includes(item.name)) score -= 3
     }
     for (const nutrient of ctx.focusNutrients) {
+      const tag = NUTRIENT_TAGS.find((n) => n.focus === nutrient)?.tag
       const key = focusField(nutrient)
-      if (key) score += (totals[key] / (DAILY_REFERENCE[key] ?? 1)) * 5
+      if (tag) score += parts.filter(({ item }) => item.nutrient_tags.includes(tag)).length * 2
+      else if (key) score += (totals[key] / (DAILY_REFERENCE[key] ?? 1)) * 5
     }
     if (ctx.proteinTarget != null) score -= Math.abs(totals.protein_g - ctx.proteinTarget) / 10
 
-    if (!best || score > best.score) best = { id: recipe.id, score }
+    if (!best || score > best.score) best = { id, score }
   }
   return best?.id ?? null
 }
