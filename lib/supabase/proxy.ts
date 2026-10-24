@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server"
 const PUBLIC_PATHS = ["/login", "/signup", "/auth"]
 
 function isPublic(pathname: string) {
+  if (pathname === "/") return true // landing page
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 

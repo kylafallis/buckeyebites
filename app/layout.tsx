@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BuckeyeBites",
   description: "Ohio State dining, planned around you.",
+  icons: { apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "BuckeyeBite", statusBarStyle: "default" },
+  // Next only emits mobile-web-app-capable; older iOS versions need the Apple name.
+  other: { "apple-mobile-web-app-capable": "yes" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#BB0000",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
