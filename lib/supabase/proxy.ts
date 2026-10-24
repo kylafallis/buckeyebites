@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-const PUBLIC_PATHS = ["/login", "/auth"]
+const PUBLIC_PATHS = ["/login", "/signup", "/auth"]
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
@@ -63,7 +63,7 @@ export async function updateSession(request: NextRequest) {
   if (!onboarded) {
     return pathname === "/onboarding" ? response : redirectTo("/onboarding")
   }
-  if (pathname === "/" || pathname === "/login" || pathname === "/onboarding") {
+  if (["/", "/login", "/signup", "/onboarding"].includes(pathname)) {
     return redirectTo("/dashboard")
   }
 
