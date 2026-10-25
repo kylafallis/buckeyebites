@@ -160,7 +160,7 @@ function DupeResultView({ result, userId }: { result: DupeResult; userId: string
 
       {result.steps.length > 0 && (
         <div>
-          <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">At the table</h3>
+          <h3 className="mb-1.5 text-base font-bold">At the table</h3>
           <ol className="flex flex-col gap-2">
             {result.steps.map((step, i) => (
               <li key={i} className="flex gap-3 text-sm">

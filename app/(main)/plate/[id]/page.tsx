@@ -117,37 +117,57 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
     taggedMeal ?? parts.find((p) => isMealPeriod(p.item.meal_period))?.item.meal_period ?? "lunch"
   const photos = platePhotos(recipe.recipe_items.flatMap((ri) => (ri.menu_items ? [ri.menu_items] : [])))
 
+  const take = (servings: number, size: string | null) =>
+    `Take ${servings}${size ? ` · ${size}${servings === 1 ? "" : " each"}` : ""}`
+
   return (
     <>
-      <PlatePhoto photos={photos} className="mb-4 aspect-[16/9] w-full" />
-      <h1 className="text-xl font-semibold">{recipe.title ?? "Your plate"}</h1>
-      <p className="text-sm text-muted-foreground">{MEAL_LABELS[meal]} at Scott</p>
+      <section className="relative overflow-hidden rounded-2xl bg-card p-5 shadow-[0_6px_24px_rgba(31,42,35,0.07)]">
+        <BiteNotch />
+        <p className="text-sm text-muted-foreground">
+          {MEAL_LABELS[meal]} at Scott{curated ? ", picked for you" : ""}
+        </p>
+        <h1 className="mt-1 max-w-[85%] text-2xl leading-tight font-extrabold">{recipe.title ?? "Your plate"}</h1>
+        {recipe.blurb && <p className="mt-2 text-[0.9375rem] leading-relaxed">{recipe.blurb}</p>}
+        {stops.length > 0 && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            {stops.length === 1 ? "One stop" : `${stops.length} stops, in walking order`}
+          </p>
+        )}
+      </section>
 
       {unsafeNames.length > 0 && (
-        <div className="mt-4 flex gap-2 border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert">
+        <div className="mt-4 flex gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert">
           <WarningIcon className="mt-0.5 size-4 shrink-0 text-destructive" weight="fill" />
           <p>
             {unsafeNames.join(", ")} {unsafeNames.length === 1 ? "isn't" : "aren't"} safe for you or{" "}
             {unsafeNames.length === 1 ? "isn't" : "aren't"} on today&apos;s menu, so{" "}
-            {unsafeNames.length === 1 ? "it's" : "they're"} hidden. Try again for a new plate.
+            {unsafeNames.length === 1 ? "it's" : "they're"} hidden. Pick another plate.
           </p>
         </div>
       )}
 
-      <ol className="mt-5 flex flex-col gap-3">
+      <h2 className="sr-only">Your route</h2>
+      <ol className="mt-5 flex flex-col">
         {stops.map((stop, i) => (
-          <li key={`${stop.station}-${i}`} className="flex gap-3">
-            <span className="flex size-7 shrink-0 items-center justify-center bg-primary text-xs font-semibold text-primary-foreground">
-              {i + 1}
-            </span>
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{stop.station}</p>
-              <ul>
+          <li key={`${stop.station}-${i}`} className="flex gap-3.5">
+            <div className="flex flex-col items-center" aria-hidden>
+              <StopMarker n={i + 1} />
+              {i < stops.length - 1 && <span className="w-[3px] flex-1 rounded-full bg-buckeye" />}
+            </div>
+            <div className="min-w-0 flex-1 pt-2 pb-5">
+              <h3 className="text-[1.0625rem] font-bold">
+                <span className="sr-only">Stop {i + 1}: </span>
+                {stop.station}
+              </h3>
+              <ul className="mt-1.5 flex flex-col gap-2">
                 {stop.items.map(({ item, servings }) => (
-                  <li key={item.id} className="text-sm font-medium">
-                    {item.name}
-                    {servings !== 1 && <span className="text-muted-foreground"> × {servings}</span>}
-                    <NutrientBadges tags={item.nutrient_tags} className="mt-0.5 font-normal" />
+                  <li key={item.id}>
+                    <p className="flex items-baseline justify-between gap-3 text-[0.9375rem]">
+                      <span className="font-medium">{item.name}</span>
+                      <span className="shrink-0 text-sm text-muted-foreground">{take(servings, item.serving_size)}</span>
+                    </p>
+                    <NutrientBadges tags={item.nutrient_tags} className="mt-0.5" />
                   </li>
                 ))}
               </ul>
@@ -156,28 +176,23 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
         ))}
       </ol>
 
-      {recipe.blurb && (
-        <section className="mt-5 border-l-2 border-primary bg-primary/5 px-3 py-2">
-          <h2 className="text-xs font-semibold tracking-wide text-primary uppercase">Why this fits</h2>
-          <p className="mt-0.5 text-sm">{recipe.blurb}</p>
-        </section>
-      )}
-
       {parts.length > 0 && (
-        <dl className="mt-5 grid grid-cols-2 gap-2">
+        <dl className="mt-2 grid grid-cols-2 gap-x-6 border-t pt-4 sm:grid-cols-4">
           {shown.map((key) => (
-            <div key={key} className="border bg-card p-3">
-              <dt className="text-xs text-muted-foreground">{TOTAL_FIELDS[key].label}</dt>
-              <dd className="text-lg font-semibold tabular-nums">
+            <div key={key} className="py-1">
+              <dt className="text-sm text-muted-foreground">{TOTAL_FIELDS[key].label}</dt>
+              <dd className="font-heading text-xl font-extrabold tabular-nums">
                 {Math.round(totals[key])}
                 {TOTAL_FIELDS[key].unit && (
-                  <span className="text-sm font-normal text-muted-foreground"> {TOTAL_FIELDS[key].unit}</span>
+                  <span className="font-sans text-sm font-normal text-muted-foreground"> {TOTAL_FIELDS[key].unit}</span>
                 )}
               </dd>
             </div>
           ))}
         </dl>
       )}
+
+      {photos.length > 0 && <PlatePhoto photos={photos} className="mt-5 aspect-[16/9] w-full rounded-2xl" />}
 
       <PlateActions
         recipeId={recipe.id}
@@ -186,8 +201,30 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
         planDate={todayInColumbus()}
         totals={totals}
         canLog={parts.length > 0 && unsafeNames.length === 0}
+        retry={curated}
       />
     </>
+  )
+}
+
+/** The logo's bite, cut from the hero card's top-right corner. */
+function BiteNotch() {
+  return (
+    <>
+      <span aria-hidden className="absolute -top-5 -right-5 size-14 rounded-full bg-background" />
+      <span aria-hidden className="absolute top-0.5 right-7 size-8 rounded-full bg-background" />
+    </>
+  )
+}
+
+/** A numbered buckeye: one per station on the route. */
+function StopMarker({ n }: { n: number }) {
+  return (
+    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-buckeye">
+      <span className="flex size-6 items-center justify-center rounded-full bg-nut font-heading text-[0.8125rem] font-extrabold text-buckeye">
+        {n}
+      </span>
+    </span>
   )
 }
 

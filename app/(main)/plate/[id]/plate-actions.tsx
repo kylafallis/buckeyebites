@@ -1,13 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { CheckIcon, CircleNotchIcon } from "@phosphor-icons/react"
+import Link from "next/link"
+import { CheckIcon } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
-import { requestPlate } from "@/lib/request-plate"
 import type { MealPeriod } from "@/lib/menu-shared"
 import type { Totals } from "@/lib/totals"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 
 type Status = "idle" | "pending" | "done"
 
@@ -26,13 +25,11 @@ export function PlateActions({
   planDate: string
   totals: Totals
   canLog: boolean
-  /** Show "Try again" (a new Feed me plate). Off for recipe dupes. */
+  /** Show "Another plate" (back to Feed me's plates for this meal). Off for recipe dupes. */
   retry?: boolean
 }) {
-  const router = useRouter()
   const [logged, setLogged] = useState<Status>("idle")
   const [saved, setSaved] = useState<Status>("idle")
-  const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function run(setStatus: (s: Status) => void, write: () => PromiseLike<{ error: unknown }>) {
@@ -62,52 +59,46 @@ export function PlateActions({
         .insert({ user_id: userId, plan_date: planDate, meal_period: meal, recipe_id: recipeId })
     )
 
-  async function tryAgain() {
-    setRetrying(true)
-    setError(null)
-    try {
-      router.push(`/plate/${await requestPlate(recipeId, { meal })}?meal=${meal}`)
-    } catch (e) {
-      setError((e as Error).message)
-      setRetrying(false)
-    }
-  }
-
   return (
     <div className="mt-6 flex flex-col gap-2">
-      <Button className="h-12 text-sm" onClick={logIt} disabled={!canLog || logged !== "idle"}>
+      <Button className="h-12 rounded-xl text-base font-bold" onClick={logIt} disabled={!canLog || logged !== "idle"}>
         {logged === "done" ? (
           <>
-            <CheckIcon weight="bold" /> Logged
+            <CheckIcon weight="bold" /> Logged. Enjoy!
           </>
         ) : logged === "pending" ? (
           "Logging…"
         ) : (
-          "Log it"
+          "I ate this"
         )}
       </Button>
       <div className="flex gap-2">
-        <Button variant="outline" className="h-12 flex-1 text-sm" onClick={save} disabled={!canLog || saved !== "idle"}>
+        <Button
+          variant="outline"
+          className="h-12 flex-1 rounded-xl border-2 border-foreground text-base font-bold"
+          onClick={save}
+          disabled={!canLog || saved !== "idle"}
+        >
           {saved === "done" ? (
             <>
-              <CheckIcon weight="bold" /> Saved to plan
+              <CheckIcon weight="bold" /> Planned
             </>
           ) : saved === "pending" ? (
             "Saving…"
           ) : (
-            "Save"
+            "Save to plan"
           )}
         </Button>
         {retry && (
-          <Button variant="outline" className="h-12 flex-1 text-sm" onClick={tryAgain} disabled={retrying}>
-            {retrying ? (
-              <>
-                <CircleNotchIcon className="animate-spin" /> Building your plate...
-              </>
-            ) : (
-              "Try again"
-            )}
-          </Button>
+          <Link
+            href={`/feed?meal=${meal}`}
+            className={buttonVariants({
+              variant: "outline",
+              className: "h-12 flex-1 rounded-xl border-2 border-foreground text-base font-bold",
+            })}
+          >
+            Another plate
+          </Link>
         )}
       </div>
       {error && (

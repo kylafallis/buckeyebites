@@ -125,7 +125,7 @@ export function MenuBrowser({
         stations.map(([station, stationItems]) => (
           <section key={station} aria-label={station}>
             <h2
-              className="pt-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+              className="pt-3 pb-1 font-heading text-lg font-extrabold text-foreground"
             >
               {station}
             </h2>
@@ -194,7 +194,7 @@ function ItemDetails({ item, showCalories }: { item: MenuItem; showCalories: boo
 
       <div className="flex flex-col gap-4 px-4 pb-6">
         <section>
-          <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <h3 className="mb-1.5 text-base font-bold">
             Allergens
           </h3>
           {item.allergens.length > 0 ? (
@@ -211,7 +211,7 @@ function ItemDetails({ item, showCalories }: { item: MenuItem; showCalories: boo
         </section>
 
         <section>
-          <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <h3 className="mb-1.5 text-base font-bold">
             Nutrition
           </h3>
           <NutrientBadges tags={item.nutrient_tags} className="mb-2" />

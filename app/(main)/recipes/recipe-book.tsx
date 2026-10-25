@@ -149,7 +149,7 @@ function FilterRow<T extends string>({
 }) {
   return (
     <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4" role="group" aria-label={label}>
-      <span className="w-16 shrink-0 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
+      <span className="w-16 shrink-0 text-sm font-semibold text-muted-foreground">{label}</span>
       {options.map((o) => {
         const on = value === o.value
         return (

@@ -178,7 +178,7 @@ async function Dashboard() {
 function Section({ title, className = "", children }: { title: string; className?: string; children: React.ReactNode }) {
   return (
     <section className={`mt-6 ${className}`}>
-      <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
+      <h2 className="mb-2 text-lg font-extrabold">{title}</h2>
       {children}
     </section>
   )

@@ -26,6 +26,7 @@ export class PlateError extends Error {
 export type CuratedPlate = {
   id: number
   title: string | null
+  blurb: string | null
   tags: string[]
   parts: { item: MenuItem; servings: number }[]
 }
@@ -33,6 +34,7 @@ export type CuratedPlate = {
 type CuratedRow = {
   id: number
   title: string | null
+  blurb: string | null
   tags: string[] | null
   recipe_items: { servings: number | null; menu_items: { name: string } | null }[]
 }
@@ -52,7 +54,7 @@ export async function safeCuratedPlates(
 ): Promise<CuratedPlate[]> {
   const { data, error } = await supabase
     .from("recipes")
-    .select("id, title, tags, recipe_items(servings, menu_items(name))")
+    .select("id, title, blurb, tags, recipe_items(servings, menu_items(name))")
     .eq("source", "curated")
     .order("id")
   if (error) throw error
@@ -72,7 +74,13 @@ export async function safeCuratedPlates(
       servings: ri.servings ?? 1,
     }))
     if (parts.some((p) => !p.item)) continue
-    plates.push({ id: recipe.id, title: recipe.title, tags: recipe.tags ?? [], parts: parts as CuratedPlate["parts"] })
+    plates.push({
+      id: recipe.id,
+      title: recipe.title,
+      blurb: recipe.blurb,
+      tags: recipe.tags ?? [],
+      parts: parts as CuratedPlate["parts"],
+    })
   }
   return plates
 }
@@ -181,4 +189,30 @@ export async function pickPlate(
   const choices = plates.length > 1 ? plates.filter((p) => p.id !== exclude) : plates
   const id = weightedPick(choices.map((p) => ({ value: p.id, score: score(p, prefs) })))
   return { recipeId: id, source: "curated" }
+}
+
+/**
+ * Feed me's swipe deck: up to `limit` safe plates for one meal, in a random
+ * order weighted the same way as pickPlate, so better fits tend to come first
+ * but every safe plate can show up.
+ */
+export async function rankedPlates(
+  supabase: SupabaseClient,
+  userId: string,
+  meal: MealPeriod,
+  { date = todayInColumbus(), limit = 8 }: { date?: string; limit?: number } = {}
+): Promise<CuratedPlate[]> {
+  const [plates, prefs] = await Promise.all([
+    safePlatesForSlot(supabase, userId, date, meal),
+    loadPreferences(supabase, userId),
+  ])
+  if (plates.length === 0) return []
+  const scores = plates.map((p) => score(p, prefs))
+  const best = Math.max(...scores)
+  // Weighted shuffle (Efraimidis-Spirakis): sort by random^(1/weight).
+  return plates
+    .map((plate, i) => ({ plate, key: Math.random() ** (1 / Math.exp((scores[i] - best) / 2)) }))
+    .sort((a, b) => b.key - a.key)
+    .slice(0, limit)
+    .map((x) => x.plate)
 }
