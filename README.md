@@ -8,7 +8,7 @@ Built at HackOHI/O 2026 by team Dominatrices: Kyla (tech lead), Hanna (data), Vi
 
 ## What it does
 
-- **Feed me:** picks a plate for breakfast, lunch or dinner from 215 ready-made plates written by the team. A plate is only offered when every food on it is on today's menu and safe for you. The pick is random, weighted toward foods you liked, your focus nutrients (iron, vitamin D, calcium, fiber) or your protein goal.
+- **Feed me:** picks a plate for breakfast, lunch or dinner from 215 ready-made plates written by the team. A plate is only offered when every food on it is on today's menu and safe for you. The pick is random, weighted toward foods you liked, your focus nutrients (iron, vitamin D, calcium, fiber) and your protein goal.
 - **Swipe to set preferences:** onboarding shows real Scott foods to like or skip. Sauces and condiments aren't shown.
 - **Menu:** today's Scott menu by meal and station, already filtered for you. A location toggle shows sample foods for Kennedy Commons, Morrill Tower and Union Market, which are coming soon.
 - **Recipe dupe:** paste a link to any recipe and BuckeyeBites finds the closest foods served at Scott this week, such as swapping in any cheese for the one in the recipe. You then save it to your recipe book.

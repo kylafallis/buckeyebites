@@ -31,7 +31,7 @@ export type CuratedPlate = {
   parts: { item: MenuItem; servings: number }[]
 }
 
-type CuratedRow = {
+export type CuratedRow = {
   id: number
   title: string | null
   blurb: string | null
@@ -52,18 +52,27 @@ export async function safeCuratedPlates(
   items: MenuItem[],
   meal: MealPeriod
 ): Promise<CuratedPlate[]> {
+  return matchCuratedPlates(await curatedRecipes(supabase), items, meal)
+}
+
+/** Every ready-made plate with its foods' names, for matchCuratedPlates. */
+export async function curatedRecipes(supabase: SupabaseClient): Promise<CuratedRow[]> {
   const { data, error } = await supabase
     .from("recipes")
     .select("id, title, blurb, tags, recipe_items(servings, menu_items(name))")
     .eq("source", "curated")
     .order("id")
   if (error) throw error
+  return data as unknown as CuratedRow[]
+}
 
+/** safeCuratedPlates without the fetch, for checking many menus against one list of plates. */
+export function matchCuratedPlates(recipes: CuratedRow[], items: MenuItem[], meal: MealPeriod): CuratedPlate[] {
   const byName = new Map<string, MenuItem>()
   for (const item of items) if (!byName.has(foodKey(item.name))) byName.set(foodKey(item.name), item)
 
   const plates: CuratedPlate[] = []
-  for (const recipe of data as unknown as CuratedRow[]) {
+  for (const recipe of recipes) {
     // A plate tagged with meal periods only shows at those meals.
     const meals = (recipe.tags ?? []).filter(isMealPeriod)
     if (meals.length > 0 && !meals.includes(meal)) continue
@@ -115,7 +124,8 @@ async function loadPreferences(supabase: SupabaseClient, userId: string): Promis
   return {
     likes: names(true),
     dislikes: names(false),
-    focusNutrients: mode === "nutrients" ? (p?.focus_nutrients ?? []) : [],
+    // Focus nutrients can be set alongside a protein goal (mode "macros").
+    focusNutrients: mode === "balanced" ? [] : (p?.focus_nutrients ?? []),
     proteinTarget:
       mode === "macros" && Number.isFinite(dailyProtein) && dailyProtein > 0
         ? Math.round(dailyProtein / meals)

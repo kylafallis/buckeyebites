@@ -69,7 +69,8 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
   const curated = recipe.source === "curated"
   // The plate's meal comes from its own tags; ?meal= (from Feed me) picks among them.
   const mealTags = (recipe.tags ?? []).filter(isMealPeriod)
-  const taggedMeal = isMealPeriod(asked) && mealTags.includes(asked) ? asked : mealTags[0]
+  // Untagged plates fit any meal, so ?meal= picks it directly.
+  const taggedMeal = isMealPeriod(asked) && (mealTags.length === 0 || mealTags.includes(asked)) ? asked : mealTags[0]
   const curatedMeal = taggedMeal ?? "lunch"
   const todaySafe = curated ? await getSafeItems(userId, curatedMeal, day, { forPlate: true }) : []
   const todayByName = new Map(todaySafe.map((i) => [foodKey(i.name), i]))

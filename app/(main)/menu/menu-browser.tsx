@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { CaretRightIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
-import type { MealPeriod, MenuItem } from "@/lib/menu-shared"
+import { foodKey, MEAL_PERIODS, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
 import { ALLERGENS, labelFor } from "@/lib/preferences"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { Badge } from "@/components/ui/badge"
@@ -24,21 +24,57 @@ const PERIOD_LABELS: Record<MealPeriod, string> = {
 
 const tagLabel = (tag: string) => tag.replaceAll("_", " ")
 
+/** Likes and times eaten per food, keyed by foodKey, from every student. */
+export type Popularity = Record<string, { likes: number; eaten: number }>
+
+const POPULAR_LIMIT = 20
+
+type Tab = MealPeriod | "popular"
+type PopularItem = { item: MenuItem; meals: MealPeriod[]; likes: number; eaten: number }
+
+/** Today's foods students like or eat most, across all meals, one row per food. */
+function popularToday(menus: Record<MealPeriod, MenuItem[]>, popularity: Popularity): PopularItem[] {
+  const byFood = new Map<string, PopularItem>()
+  for (const meal of MEAL_PERIODS) {
+    for (const item of menus[meal]) {
+      const key = foodKey(item.name)
+      const stats = popularity[key]
+      if (!stats || stats.likes + stats.eaten === 0) continue
+      const entry = byFood.get(key)
+      if (!entry) byFood.set(key, { item, meals: [meal], ...stats })
+      else if (!entry.meals.includes(meal)) entry.meals.push(meal)
+    }
+  }
+  return [...byFood.values()]
+    .sort((a, b) => b.likes + b.eaten - (a.likes + a.eaten) || a.item.name.localeCompare(b.item.name))
+    .slice(0, POPULAR_LIMIT)
+}
+
+/** The search box and diet chips. */
+function matchesFilters(item: MenuItem, query: string, tags: string[]) {
+  const q = query.trim().toLowerCase()
+  return (!q || item.name.toLowerCase().includes(q)) && tags.every((t) => item.diet_tags.includes(t))
+}
+
 export function MenuBrowser({
   menus,
   defaultPeriod,
   showCalories,
+  popularity,
 }: {
   menus: Record<MealPeriod, MenuItem[]>
   defaultPeriod: MealPeriod
   showCalories: boolean
+  /** null when the popular-foods view isn't set up yet. */
+  popularity: Popularity | null
 }) {
-  const [period, setPeriod] = useState<MealPeriod>(defaultPeriod)
+  const [period, setPeriod] = useState<Tab>(defaultPeriod)
   const [query, setQuery] = useState("")
   const [tags, setTags] = useState<string[]>([])
   const [selected, setSelected] = useState<MenuItem | null>(null)
 
-  const items = menus[period]
+  const popular = useMemo(() => (popularity ? popularToday(menus, popularity) : []), [menus, popularity])
+  const items = useMemo(() => (period === "popular" ? popular.map((p) => p.item) : menus[period]), [period, popular, menus])
 
   // Chips come from the tags present in this meal, minus "contains_*" warnings.
   const availableTags = useMemo(
@@ -50,11 +86,9 @@ export function MenuBrowser({
   )
 
   const stations = useMemo(() => {
-    const q = query.trim().toLowerCase()
     const groups = new Map<string, MenuItem[]>()
     for (const item of items) {
-      if (q && !item.name.toLowerCase().includes(q)) continue
-      if (!tags.every((t) => item.diet_tags.includes(t))) continue
+      if (!matchesFilters(item, query, tags)) continue
       const station = item.station?.name ?? "Other"
       groups.set(station, [...(groups.get(station) ?? []), item])
     }
@@ -69,7 +103,7 @@ export function MenuBrowser({
       <Tabs
         value={period}
         onValueChange={(value) => {
-          setPeriod(value as MealPeriod)
+          setPeriod(value as Tab)
           setTags([])
         }}
       >
@@ -79,6 +113,9 @@ export function MenuBrowser({
               {PERIOD_LABELS[p]}
             </TabsTrigger>
           ))}
+          <TabsTrigger value="popular" className="text-sm">
+            Popular
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -115,7 +152,14 @@ export function MenuBrowser({
         </div>
       )}
 
-      {stations.length === 0 ? (
+      {period === "popular" ? (
+        <PopularList
+          rows={popular.filter((p) => matchesFilters(p.item, query, tags))}
+          state={popularity === null ? "missing" : popular.length === 0 ? "empty" : "ready"}
+          showCalories={showCalories}
+          onSelect={setSelected}
+        />
+      ) : stations.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">
           {items.length === 0
             ? `No ${PERIOD_LABELS[period].toLowerCase()} items for you today.`
@@ -166,6 +210,70 @@ export function MenuBrowser({
         </SheetContent>
       </Sheet>
     </div>
+  )
+}
+
+/** The Popular tab: today's foods ranked by student likes and meals eaten. */
+function PopularList({
+  rows,
+  state,
+  showCalories,
+  onSelect,
+}: {
+  rows: PopularItem[]
+  state: "missing" | "empty" | "ready"
+  showCalories: boolean
+  onSelect: (item: MenuItem) => void
+}) {
+  if (state !== "ready" || rows.length === 0) {
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        {state === "missing"
+          ? "Popular foods aren't set up yet."
+          : state === "empty"
+            ? "None of today's foods have likes yet."
+            : "Nothing matches your search."}
+      </p>
+    )
+  }
+  return (
+    <section aria-label="Popular among students">
+      <h2 className="pt-3 font-heading text-lg font-extrabold text-foreground">Popular among students</h2>
+      <p className="pb-2 text-xs text-muted-foreground">
+        Today&apos;s foods that fit you, ranked by likes on the swipe deck and meals logged. Includes simulated demo
+        students.
+      </p>
+      <ol className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+        {rows.map(({ item, meals, likes, eaten }, i) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(item)}
+              className="flex h-full min-h-14 w-full items-center gap-3 border bg-card px-3 py-2 text-left hover:bg-muted"
+            >
+              <span className="w-6 shrink-0 text-center font-heading text-lg font-extrabold text-primary tabular-nums">
+                {i + 1}
+              </span>
+              <span className="flex-1">
+                <span className="block text-sm font-medium">{item.name}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {[item.station?.name, meals.map((m) => PERIOD_LABELS[m]).join(", ")].filter(Boolean).join(" · ")}
+                </span>
+                <span className="block text-xs text-muted-foreground tabular-nums">
+                  {[likes > 0 && `${likes} ${likes === 1 ? "like" : "likes"}`, eaten > 0 && `eaten ${eaten}×`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+              {showCalories && item.calories != null && (
+                <span className="text-xs text-muted-foreground tabular-nums">{Math.round(item.calories)} cal</span>
+              )}
+              <CaretRightIcon className="size-4 text-muted-foreground" />
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
 

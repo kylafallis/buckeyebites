@@ -7,7 +7,7 @@ import { getSafeItems, getSafeSampleItems } from "@/lib/menu.server"
 import { currentMealPeriod, MEAL_PERIODS, SCOTT_SLUG, todayInColumbus } from "@/lib/menu-shared"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { PageContainer } from "@/components/page-container"
-import { MenuBrowser } from "./menu-browser"
+import { MenuBrowser, type Popularity } from "./menu-browser"
 
 export const metadata: Metadata = {
   title: "Menu · BuckeyeBites",
@@ -61,10 +61,22 @@ async function Menu({ searchParams }: { searchParams: PageProps<"/menu">["search
 async function LiveMenu({ userId, slug }: { userId: string; slug: string }) {
   const supabase = await createClient()
   const date = todayInColumbus()
-  const [profile, ...lists] = await Promise.all([
+  const [profile, popular, ...lists] = await Promise.all([
     supabase.from("profiles").select("mode").eq("id", userId).maybeSingle(),
+    // View from supabase/migrations/009_popular_foods.sql.
+    supabase.from("insight_popular_foods").select("food, likes, times_eaten"),
     ...MEAL_PERIODS.map((p) => getSafeItems(userId, p, date, { location: slug })),
   ])
+  // Before migration 009 runs the view doesn't exist; the Popular tab says so.
+  if (popular.error) console.error("Loading popular foods failed:", popular.error.message)
+  const popularity: Popularity | null = popular.error
+    ? null
+    : Object.fromEntries(
+        (popular.data as { food: string; likes: number; times_eaten: number }[]).map((r) => [
+          r.food,
+          { likes: Number(r.likes), eaten: Number(r.times_eaten) },
+        ])
+      )
 
   return (
     <>
@@ -72,6 +84,7 @@ async function LiveMenu({ userId, slug }: { userId: string; slug: string }) {
         menus={{ breakfast: lists[0], lunch: lists[1], dinner: lists[2] }}
         defaultPeriod={currentMealPeriod()}
         showCalories={profile.data?.mode === "macros"}
+        popularity={popularity}
       />
     </>
   )

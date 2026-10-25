@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { addDays, currentMealPeriod, MEAL_PERIODS, todayInColumbus, type MealPeriod } from "@/lib/menu-shared"
-import { checkDay, goalName, type DayFood, type GoalProfile } from "@/lib/goals"
+import { checkDay, goalName, goalProfile, type DayFood } from "@/lib/goals"
 import { PageContainer } from "@/components/page-container"
 import { DayPlan, type DayInfo, type GoalStats, type Slots } from "./day-plan"
 
@@ -65,12 +65,7 @@ async function Plan() {
     slots[`${row.plan_date}|${row.meal_period}`] = { recipeId: row.recipe_id, title: row.recipes?.title ?? "Scott plate" }
   }
 
-  const proteinGoal = Number((profileRow.data?.goals as Record<string, unknown> | null)?.protein_g)
-  const profile: GoalProfile = {
-    mode: profileRow.data?.mode ?? "balanced",
-    focusNutrients: profileRow.data?.focus_nutrients ?? [],
-    proteinGoal: Number.isFinite(proteinGoal) && proteinGoal > 0 ? proteinGoal : null,
-  }
+  const profile = goalProfile(profileRow.data)
 
   const byDay = new Map<string, LogRow[]>()
   for (const row of logs.data as unknown as LogRow[]) {
@@ -110,7 +105,7 @@ async function Plan() {
   const labels = [...new Set(week.flatMap((d) => days[d].checks.map((c) => c.label)))]
   const stats: GoalStats = {
     goal: goalName(profile),
-    measurable: profile.mode !== "macros" || profile.proteinGoal != null,
+    measurable: profile.mode !== "macros" || profile.proteinGoal != null || profile.focusNutrients.length > 0,
     week: { hit: hits(week), logged: week.filter((d) => days[d].status !== "none").length },
     perWeek: Math.round((hits(lastDays(PAST_DAYS)) / (PAST_DAYS / 7)) * 10) / 10,
     streak,

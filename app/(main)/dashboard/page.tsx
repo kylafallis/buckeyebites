@@ -1,4 +1,4 @@
-import { Suspense } from "react"
+import { Suspense, type ReactNode } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { redirect } from "next/navigation"
@@ -197,33 +197,33 @@ function Progress({
   foods: LoggedFood[]
   logs: MealLog[]
 }) {
-  if (mode === "nutrients" && focusNutrients.length > 0) {
-    return (
-      <>
-        <div className="flex flex-wrap justify-around gap-4">
-          {focusNutrients.map((nutrient) => {
-            const tag = NUTRIENT_TAGS.find((n) => n.focus === nutrient)?.tag
-            const count = foods.filter((f) =>
-              tag ? (f.nutrient_tags ?? []).includes(tag) : nutrient === "fiber" && (f.fiber_g ?? 0) >= FIBER_GOOD_SOURCE_G
-            ).length
-            return (
-              <ProgressRing
-                key={nutrient}
-                value={count}
-                max={NUTRIENT_GOAL}
-                detail={`${count}/${NUTRIENT_GOAL}`}
-                label={labelFor(NUTRIENTS, nutrient)}
-              />
-            )
-          })}
-        </div>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          Foods logged today that are a good source (estimated). Goal: {NUTRIENT_GOAL} each.
-        </p>
-      </>
-    )
-  }
+  // Focus nutrients and a protein goal (macros mode) can both be set; show each that is.
+  const nutrients = mode !== "balanced" && focusNutrients.length > 0 && (
+    <div>
+      <div className="flex flex-wrap justify-around gap-4">
+        {focusNutrients.map((nutrient) => {
+          const tag = NUTRIENT_TAGS.find((n) => n.focus === nutrient)?.tag
+          const count = foods.filter((f) =>
+            tag ? (f.nutrient_tags ?? []).includes(tag) : nutrient === "fiber" && (f.fiber_g ?? 0) >= FIBER_GOOD_SOURCE_G
+          ).length
+          return (
+            <ProgressRing
+              key={nutrient}
+              value={count}
+              max={NUTRIENT_GOAL}
+              detail={`${count}/${NUTRIENT_GOAL}`}
+              label={labelFor(NUTRIENTS, nutrient)}
+            />
+          )
+        })}
+      </div>
+      <p className="mt-3 text-center text-xs text-muted-foreground">
+        Foods logged today that are a good source (estimated). Goal: {NUTRIENT_GOAL} each.
+      </p>
+    </div>
+  )
 
+  let macroRings: ReactNode = null
   if (mode === "macros") {
     const total = (key: string) => logs.reduce((sum, log) => sum + (Number(log.totals?.[key]) || 0), 0)
     const goal = (key: string) => {
@@ -235,8 +235,8 @@ function Progress({
       { key: "carbs_g", label: "Carbs" },
       { key: "fat_g", label: "Fat" },
     ]
-    return (
-      <>
+    macroRings = (
+      <div>
         <div className="flex justify-around gap-2">
           {macros.map(({ key, label }) => {
             const value = Math.round(total(key))
@@ -256,7 +256,16 @@ function Progress({
           <span className="font-semibold tabular-nums">{Math.round(total("calories"))}</span>{" "}
           <span className="text-muted-foreground">calories today</span>
         </p>
-      </>
+      </div>
+    )
+  }
+
+  if (nutrients || macroRings) {
+    return (
+      <div className="flex flex-col gap-6">
+        {macroRings}
+        {nutrients}
+      </div>
     )
   }
 

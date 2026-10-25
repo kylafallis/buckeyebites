@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { CheckIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
 import { foodKey } from "@/lib/menu-shared"
-import { ALLERGENS, DIETS, MODES, NUTRIENTS } from "@/lib/preferences"
+import { ALLERGENS, DIETS, NUTRIENTS } from "@/lib/preferences"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Logo } from "@/components/logo"
@@ -35,7 +35,7 @@ const STEPS = [
   { title: "Any diet we should know about?", subtitle: "Pick all that apply, or none for no restrictions." },
   { title: "Any food allergies?", subtitle: "Pick all that apply. Foods with these never show up for you, anywhere in the app." },
   { title: "How do you eat?", subtitle: "Per day, on a typical day." },
-  { title: "What's your goal?", subtitle: "You can change this anytime." },
+  { title: "What are your goals?", subtitle: "Pick as many as you like, or Balanced. You can change this anytime." },
   { title: "What looks good?", subtitle: "Swipe right to like, left to pass." },
 ]
 
@@ -43,6 +43,8 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [values, setValues] = useState(initial)
+  // Protein can be picked alongside any focus nutrients.
+  const [proteinOn, setProteinOn] = useState(initial.mode === "macros")
   const [protein, setProtein] = useState(
     typeof initial.goals.protein_g === "number" ? String(initial.goals.protein_g) : ""
   )
@@ -62,10 +64,7 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
   function validate(): string | null {
     if (step !== 3) return null
-    if (values.mode === "nutrients" && values.focusNutrients.length === 0) {
-      return "Pick at least one nutrient to focus on."
-    }
-    if (values.mode === "macros") {
+    if (proteinOn) {
       const grams = Number(protein)
       if (!Number.isInteger(grams) || grams < 1 || grams > 400) {
         return "Enter a protein goal between 1 and 400 grams."
@@ -158,15 +157,17 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
     }
 
     const goals = { ...values.goals }
-    if (values.mode === "macros") goals.protein_g = Number(protein)
+    if (proteinOn) goals.protein_g = Number(protein)
     else delete goals.protein_g
+    // mode "macros" means a protein goal is set; focus nutrients can be set with it.
+    const mode = proteinOn ? "macros" : values.focusNutrients.length > 0 ? "nutrients" : "balanced"
     const preferences = {
       ...dietFields,
       meals_per_day: values.mealsPerDay,
       snacks_per_day: values.snacksPerDay,
       desserts_per_day: values.dessertsPerDay,
-      mode: values.mode,
-      focus_nutrients: values.mode === "nutrients" ? values.focusNutrients : [],
+      mode,
+      focus_nutrients: values.focusNutrients,
       goals,
     }
 
@@ -306,34 +307,28 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
         )}
 
         {step === 3 && (
-          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Goal">
-            {MODES.map((m) => (
-              <Choice
-                key={m.value}
-                role="radio"
-                selected={values.mode === m.value}
-                onClick={() => set("mode", m.value)}
-                label={m.label}
-                description={m.description}
-              />
-            ))}
+          <div className="flex flex-col gap-2" role="group" aria-label="Goals">
+            <Choice
+              role="checkbox"
+              selected={!proteinOn && values.focusNutrients.length === 0}
+              onClick={() => {
+                setProteinOn(false)
+                set("focusNutrients", [])
+              }}
+              label="Balanced"
+              description="A well-rounded mix at every meal."
+            />
 
-            {values.mode === "nutrients" && (
-              <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Nutrients to focus on">
-                {NUTRIENTS.map((n) => (
-                  <Choice
-                    key={n.value}
-                    role="checkbox"
-                    selected={values.focusNutrients.includes(n.value)}
-                    onClick={() => toggle("focusNutrients", n.value)}
-                    label={n.label}
-                  />
-                ))}
-              </div>
-            )}
-
-            {values.mode === "macros" && (
-              <label className="mt-3 flex flex-col gap-1.5 text-sm font-semibold">
+            <p className="mt-3 text-sm font-semibold text-muted-foreground">Or focus on one or more</p>
+            <Choice
+              role="checkbox"
+              selected={proteinOn}
+              onClick={() => setProteinOn((on) => !on)}
+              label="Protein"
+              description="Hit a daily protein goal."
+            />
+            {proteinOn && (
+              <label className="flex flex-col gap-1.5 text-sm font-semibold">
                 Daily protein goal (grams)
                 <Input
                   type="number"
@@ -347,6 +342,17 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
                 />
               </label>
             )}
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Nutrients to focus on">
+              {NUTRIENTS.map((n) => (
+                <Choice
+                  key={n.value}
+                  role="checkbox"
+                  selected={values.focusNutrients.includes(n.value)}
+                  onClick={() => toggle("focusNutrients", n.value)}
+                  label={n.label}
+                />
+              ))}
+            </div>
           </div>
         )}
 

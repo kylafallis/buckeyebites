@@ -36,7 +36,7 @@ export default function RecipesPage() {
   return (
     <PageContainer>
       <h1 className="text-xl font-semibold">Recipe book</h1>
-      <p className="text-sm text-muted-foreground">Plates that fit you on today&apos;s Scott menu.</p>
+      <p className="text-sm text-muted-foreground">Plates that fit you on Scott&apos;s menu this week.</p>
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading recipes…</p>}>
         <Recipes />
       </Suspense>

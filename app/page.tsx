@@ -94,7 +94,7 @@ const STEPS = ["Tell us what you can't eat and what you're aiming for", "Swipe f
 const TRUST = [
   "Feed me uses no AI. It chooses from 215 plates our team built.",
   "AI is used only to match recipe links, and it only sees foods already safe for you.",
-  "Nutrition comes from Scott's menu data. Calories stay hidden unless you choose Macros mode.",
+  "Nutrition comes from Scott's menu data. Calories stay hidden unless you set a protein goal.",
 ]
 
 export default function LandingPage() {

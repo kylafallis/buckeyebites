@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import { HeartIcon } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
-import { NUTRIENT_TAGS, type MealPeriod } from "@/lib/menu-shared"
+import { formatDay, NUTRIENT_TAGS, type MealPeriod } from "@/lib/menu-shared"
 import type { RecipeCard, RecipeDiet } from "@/lib/recipes-shared"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { PlatePhoto } from "@/components/plate-photo"
@@ -20,6 +20,14 @@ const DIETS: { value: RecipeDiet; label: string }[] = [
   { value: "halal_friendly", label: "Halal-friendly" },
 ]
 const NUTRIENTS = NUTRIENT_TAGS.map((n) => ({ value: n.tag as string, label: n.label as string }))
+const WHEN = [{ value: "today" as const, label: "On today's menu" }]
+
+/** Ready-made plates open on the day and meal they're next served; the plate page checks that menu. */
+function plateHref(card: RecipeCard) {
+  if (!card.next) return `/plate/${card.id}`
+  const params = new URLSearchParams(card.next.today ? { meal: card.next.meal } : { date: card.next.date, meal: card.next.meal })
+  return `/plate/${card.id}?${params}`
+}
 
 export function RecipeBook({
   userId,
@@ -35,6 +43,7 @@ export function RecipeBook({
   const [meal, setMeal] = useState<MealPeriod | null>(null)
   const [diet, setDiet] = useState<RecipeDiet | null>(null)
   const [nutrient, setNutrient] = useState<string | null>(null)
+  const [when, setWhen] = useState<"today" | null>(null)
   const [saved, setSaved] = useState(() => new Set(savedIds ?? []))
   const [error, setError] = useState<string | null>(null)
 
@@ -45,9 +54,10 @@ export function RecipeBook({
           (tab === "all" || saved.has(c.id)) &&
           (!meal || c.meals.includes(meal)) &&
           (!diet || c.diets.includes(diet)) &&
-          (!nutrient || c.nutrientTags.includes(nutrient))
+          (!nutrient || c.nutrientTags.includes(nutrient)) &&
+          (!when || !c.next || c.next.today)
       ),
-    [cards, tab, saved, meal, diet, nutrient]
+    [cards, tab, saved, meal, diet, nutrient, when]
   )
 
   async function toggleSave(recipeId: number) {
@@ -96,6 +106,7 @@ export function RecipeBook({
           </button>
         ))}
       </div>
+      <FilterRow label="When" options={WHEN} value={when} onChange={setWhen} />
       <FilterRow label="Meal" options={MEALS} value={meal} onChange={setMeal} />
       <FilterRow label="Diet" options={DIETS} value={diet} onChange={setDiet} />
       <FilterRow label="Nutrient" options={NUTRIENTS} value={nutrient} onChange={setNutrient} />
@@ -113,7 +124,7 @@ export function RecipeBook({
               ? "Liking plates isn't set up yet."
               : "Tap the heart on a plate to keep it here. Liked plates show up on days they fit Scott's menu."
             : cards.length === 0
-              ? "No plates fit you on today's menu yet."
+              ? "No plates fit you on this week's menu yet."
               : "No recipes match these filters."}
         </p>
       ) : (
@@ -126,13 +137,22 @@ export function RecipeBook({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link
-                      href={`/plate/${card.id}`}
+                      href={plateHref(card)}
                       className="text-sm font-semibold after:absolute after:inset-0 focus-visible:outline-none"
                     >
                       {card.title}
                     </Link>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {card.source === "dupe" ? "From your recipe link" : card.source === "ai" ? "Your AI plate" : card.meals.join(" · ")}
+                    <p className="text-xs text-muted-foreground">
+                      {card.source === "dupe"
+                        ? "From your recipe link"
+                        : card.source === "ai"
+                          ? "Your AI plate"
+                          : [
+                              card.next && (card.next.today ? "Today" : `Next: ${formatDay(card.next.date)}`),
+                              card.meals.join(" · "),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                     </p>
                   </div>
                   <button

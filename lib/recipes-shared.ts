@@ -17,4 +17,6 @@ export type RecipeCard = {
   nutrientTags: string[]
   /** Up to 4 item photos for the card picture. */
   photos: { src: string; alt: string }[]
+  /** Ready-made plates in the recipe book: the first day and meal it's on the menu, today or later. */
+  next?: { date: string; meal: MealPeriod; today: boolean }
 }

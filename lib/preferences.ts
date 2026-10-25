@@ -19,12 +19,6 @@ export const ALLERGENS = [
   { value: "sesame", label: "Sesame" },
 ] as const
 
-export const MODES = [
-  { value: "balanced", label: "Balanced", description: "A well-rounded mix at every meal." },
-  { value: "nutrients", label: "Nutrient focus", description: "Prioritize specific nutrients." },
-  { value: "macros", label: "Macros", description: "Hit a daily protein goal." },
-] as const
-
 export const NUTRIENTS = [
   { value: "iron", label: "Iron" },
   { value: "vit_d", label: "Vitamin D" },

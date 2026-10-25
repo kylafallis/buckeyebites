@@ -5,7 +5,8 @@ import { redirect } from "next/navigation"
 import { SignOutIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
 import { profileDiets } from "@/lib/menu-shared"
-import { ALLERGENS, DIETS, labelFor, MODES, NUTRIENTS } from "@/lib/preferences"
+import { goalName, goalProfile } from "@/lib/goals"
+import { ALLERGENS, DIETS, labelFor } from "@/lib/preferences"
 import { PageContainer } from "@/components/page-container"
 import { Button, buttonVariants } from "@/components/ui/button"
 
@@ -27,15 +28,8 @@ async function Me() {
 
   const signupName = (claims?.claims?.user_metadata as { display_name?: unknown } | undefined)?.display_name
   const name = profile?.display_name?.trim() || (typeof signupName === "string" ? signupName.trim() : "")
-  const mode = profile?.mode ?? "balanced"
   const diets = profileDiets(profile)
-  const protein = Number((profile?.goals as Record<string, unknown> | null)?.protein_g)
-  const goalDetail =
-    mode === "nutrients" && (profile?.focus_nutrients ?? []).length > 0
-      ? (profile!.focus_nutrients as string[]).map((n) => labelFor(NUTRIENTS, n)).join(", ")
-      : mode === "macros" && Number.isFinite(protein) && protein > 0
-        ? `${protein} g protein a day`
-        : null
+  const goals = goalProfile(profile)
 
   const rows: [string, string][] = [
     ["Name", name || "Not set"],
@@ -45,7 +39,7 @@ async function Me() {
       "Allergies",
       (allergens ?? []).length > 0 ? allergens!.map((a) => labelFor(ALLERGENS, a.allergen)).join(", ") : "None",
     ],
-    ["Goal", [labelFor(MODES, mode), goalDetail].filter(Boolean).join(": ")],
+    ["Goals", goals.mode === "macros" || goals.focusNutrients.length > 0 ? goalName(goals) : "Balanced"],
   ]
 
   return (

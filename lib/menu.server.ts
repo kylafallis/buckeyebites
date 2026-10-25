@@ -53,21 +53,7 @@ export async function getSafeWeekItems(
   userId: string,
   prefer: { date: string; meal: MealPeriod }
 ): Promise<MenuItem[]> {
-  const supabase = await createClient()
-  const rows: unknown[] = []
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select(COLUMNS)
-      .eq("locations.slug", SCOTT_SLUG)
-      .eq("locations.is_live", true)
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw error
-    rows.push(...data)
-    if (data.length < PAGE_SIZE) break
-  }
-  const safe = await filterSafe(userId, Promise.resolve({ data: rows, error: null }), { forPlate: false })
+  const safe = await filterSafe(userId, liveScottRows(), { forPlate: false })
 
   const rank = (i: MenuItem) =>
     i.served_on === prefer.date
@@ -81,6 +67,38 @@ export async function getSafeWeekItems(
     seen.add(key)
     return true
   })
+}
+
+/**
+ * Every live Scott item served on `fromDate` or later (any meal), safe for
+ * this user. For the recipe book, which lists plates for the rest of the week.
+ * Pass `forPlate` as for getSafeItems.
+ */
+export async function getSafeItemsFrom(
+  userId: string,
+  fromDate: string,
+  { forPlate = false }: { forPlate?: boolean } = {}
+): Promise<MenuItem[]> {
+  return filterSafe(userId, liveScottRows(fromDate), { forPlate })
+}
+
+/** All live Scott menu rows (from `fromDate` on, if given), fetched page by page. */
+async function liveScottRows(fromDate?: string): Promise<{ data: unknown[]; error: null }> {
+  const supabase = await createClient()
+  const rows: unknown[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = supabase
+      .from("menu_items")
+      .select(COLUMNS)
+      .eq("locations.slug", SCOTT_SLUG)
+      .eq("locations.is_live", true)
+    if (fromDate) query = query.gte("served_on", fromDate)
+    const { data, error } = await query.order("id").range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    rows.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  return { data: rows, error: null }
 }
 
 /**

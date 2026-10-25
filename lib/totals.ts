@@ -43,14 +43,13 @@ export function focusField(nutrient: string): TotalKey | undefined {
 
 /** Which totals to show for a profile mode. Calories only appear in macros mode. */
 export function totalsForMode(mode: string, focusNutrients: string[]): TotalKey[] {
-  if (mode === "macros") return ["calories", "protein_g", "carbs_g", "fat_g"]
-  if (mode === "nutrients") {
-    // The menu sheet has no iron, calcium or vitamin D amounts; those show as
-    // nutrient_tags badges on each item instead of totals.
-    const focus = focusNutrients
-      .map(focusField)
-      .filter((k): k is TotalKey => !!k && !["iron_mg", "calcium_mg", "vit_d_mcg"].includes(k))
-    return [...new Set<TotalKey>(["protein_g", ...focus])]
-  }
-  return ["protein_g", "carbs_g", "fat_g", "fiber_g"]
+  if (mode === "balanced") return ["protein_g", "carbs_g", "fat_g", "fiber_g"]
+  // The menu sheet has no iron, calcium or vitamin D amounts; those show as
+  // nutrient_tags badges on each item instead of totals.
+  const focus = focusNutrients
+    .map(focusField)
+    .filter((k): k is TotalKey => !!k && !["iron_mg", "calcium_mg", "vit_d_mcg"].includes(k))
+  // Macros mode can have focus nutrients too.
+  const base: TotalKey[] = mode === "macros" ? ["calories", "protein_g", "carbs_g", "fat_g"] : ["protein_g"]
+  return [...new Set<TotalKey>([...base, ...focus])]
 }
