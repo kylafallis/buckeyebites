@@ -18,6 +18,17 @@ const DEFAULT_MODEL = "gemini-flash-latest"
 const MIN_ITEMS = 2
 const MAX_ITEMS = 4
 const MAX_REASON_WORDS = 25
+const PREVIOUS_PLATE_COUNT = 5
+
+// What each DIET value means in AVAILABLE_ITEMS' Tags, so the model's tag
+// check matches getSafeItems (which has already applied it).
+const DIET_DESCRIPTIONS: Record<string, string> = {
+  none: "none (no restrictions; every item is allowed)",
+  vegetarian: "vegetarian",
+  vegan: "vegan",
+  pescatarian: 'pescatarian (tags "pescatarian", "vegetarian" or "vegan")',
+  halal_friendly: 'halal-friendly (tags "halal" or "vegetarian")',
+}
 
 export class PlateError extends Error {
   constructor(message: string, public status: number) {
@@ -35,6 +46,8 @@ type Context = {
   allergens: Set<string>
   likes: string[]
   dislikes: string[]
+  /** Item ids of this user's recent AI plates, most recent first. */
+  previousPlates: number[][]
   items: MenuItem[]
 }
 
@@ -55,19 +68,21 @@ const RESPONSE_SCHEMA = {
       maxItems: MAX_ITEMS,
       items: {
         type: "object",
-        properties: { id: { type: "integer" }, servings: { type: "number" } },
-        required: ["id", "servings"],
+        properties: { id: { type: "integer" }, name: { type: "string" }, servings: { type: "number" } },
+        required: ["id", "name", "servings"],
       },
     },
+    total_protein_g: { type: "number" },
     reason: { type: "string" },
     order: { type: "array", items: { type: "string" } },
+    repeat: { type: "boolean" },
   },
-  required: ["title", "items", "reason", "order"],
+  required: ["title", "items", "total_protein_g", "reason", "order", "repeat"],
 }
 
 async function loadContext(supabase: SupabaseClient, userId: string): Promise<Context> {
   const meal = currentMealPeriod()
-  const [profile, allergens, swipes, items] = await Promise.all([
+  const [profile, allergens, swipes, previous, items] = await Promise.all([
     supabase
       .from("profiles")
       .select("diet, mode, focus_nutrients, goals, meals_per_day")
@@ -75,11 +90,19 @@ async function loadContext(supabase: SupabaseClient, userId: string): Promise<Co
       .maybeSingle(),
     supabase.from("user_allergens").select("allergen").eq("user_id", userId),
     supabase.from("food_swipes").select("liked, menu_items(name)").eq("user_id", userId),
+    supabase
+      .from("recipes")
+      .select("recipe_items(menu_item_id)")
+      .eq("created_by", userId)
+      .eq("source", "ai")
+      .order("created_at", { ascending: false })
+      .limit(PREVIOUS_PLATE_COUNT),
     getSafeItems(userId, meal, todayInColumbus(), { forPlate: true }),
   ])
   if (profile.error) throw profile.error
   if (allergens.error) throw allergens.error
   if (swipes.error) throw swipes.error
+  if (previous.error) throw previous.error
 
   const p = profile.data
   const mode = p?.mode ?? "balanced"
@@ -107,30 +130,38 @@ async function loadContext(supabase: SupabaseClient, userId: string): Promise<Co
     allergens: new Set(allergens.data.map((a) => a.allergen)),
     likes: names(true),
     dislikes: names(false),
+    previousPlates: (previous.data as { recipe_items: { menu_item_id: number }[] }[]).map((r) =>
+      r.recipe_items.map((ri) => ri.menu_item_id)
+    ),
     items,
   }
 }
 
 function userPrompt(ctx: Context) {
+  // Keys match the column names the system prompt refers to. Nutrition is per serving.
   const available = ctx.items.map((i) => ({
     id: i.id,
     name: i.name,
-    station: i.station?.name ?? null,
-    food_group: i.food_group,
-    protein_g: i.protein_g,
-    iron_mg: i.iron_mg,
-    calcium_mg: i.calcium_mg,
-    fiber_g: i.fiber_g,
+    Station: i.station?.name ?? null,
+    Serving: i.serving_size,
+    Tags: i.diet_tags,
+    Food_group: i.food_group,
+    Calories: i.calories,
+    Protein_g: i.protein_g,
+    Carbs_g: i.carbs_g,
+    Fat_g: i.fat_g,
+    Fiber_g: i.fiber_g,
     nutrient_tags: i.nutrient_tags,
   }))
   return [
     `MEAL: ${ctx.meal}`,
-    `DIET: ${ctx.diet}`,
+    `DIET: ${DIET_DESCRIPTIONS[ctx.diet] ?? ctx.diet}`,
     `MODE: ${ctx.mode}`,
     `PROTEIN_TARGET: ${ctx.proteinTarget != null ? `${ctx.proteinTarget}g` : "none"}`,
     `FOCUS_NUTRIENTS: ${JSON.stringify(ctx.focusNutrients)}`,
     `LIKES: ${JSON.stringify(ctx.likes)}`,
     `DISLIKES: ${JSON.stringify(ctx.dislikes)}`,
+    `PREVIOUS_PLATES: ${JSON.stringify(ctx.previousPlates)}`,
     `AVAILABLE_ITEMS: ${JSON.stringify(available)}`,
   ].join("\n")
 }
@@ -159,7 +190,7 @@ async function askModel(ctx: Context, feedback?: string): Promise<unknown> {
 
 /** Checks the model's answer against the items we sent. Returns problems, or the plate. */
 function validate(raw: unknown, ctx: Context): { plate: Plate } | { problems: string } {
-  const r = raw as { title?: unknown; items?: unknown; reason?: unknown; order?: unknown } | null
+  const r = raw as { title?: unknown; items?: unknown; reason?: unknown; order?: unknown; repeat?: unknown } | null
   if (!r || typeof r !== "object" || !Array.isArray(r.items)) return { problems: "response was not the expected JSON" }
 
   const byId = new Map(ctx.items.map((i) => [i.id, i]))
@@ -167,10 +198,16 @@ function validate(raw: unknown, ctx: Context): { plate: Plate } | { problems: st
   const seen = new Set<number>()
   const items: Plate["items"] = []
 
-  for (const entry of r.items as { id?: unknown; servings?: unknown }[]) {
+  const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+  for (const entry of r.items as { id?: unknown; name?: unknown; servings?: unknown }[]) {
     const item = byId.get(Number(entry?.id))
     if (!item) {
       problems.push(`id ${String(entry?.id)} is not in AVAILABLE_ITEMS`)
+      continue
+    }
+    // The name is there to catch miscopied ids.
+    if (typeof entry.name === "string" && !sameName(entry.name, item.name)) {
+      problems.push(`id ${item.id} is "${item.name}", not "${entry.name}"`)
       continue
     }
     if (seen.has(item.id)) {
@@ -189,6 +226,11 @@ function validate(raw: unknown, ctx: Context): { plate: Plate } | { problems: st
   }
   if (items.length < MIN_ITEMS || items.length > MAX_ITEMS) {
     problems.push(`plate must have ${MIN_ITEMS} to ${MAX_ITEMS} items, got ${items.length}`)
+  }
+  const ids = [...seen].sort((a, b) => a - b).join(",")
+  const repeated = ctx.previousPlates.some((plate) => [...plate].sort((a, b) => a - b).join(",") === ids)
+  if (repeated && r.repeat !== true) {
+    problems.push("that plate matches one in PREVIOUS_PLATES; build a different one or set repeat to true")
   }
   if (problems.length > 0) return { problems: problems.join("; ") }
 
