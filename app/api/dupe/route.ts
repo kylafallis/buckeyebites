@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getSafeWeekItems } from "@/lib/menu.server"
 import { currentMealPeriod, formatDay, isSauce, SCOTT_SLUG, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
-import { buildSteps, DupeError, fetchRecipe, matchIngredients, MAX_INGREDIENTS } from "@/lib/dupe"
+import { buildSteps, citrusItem, citrusOf, DupeError, fetchRecipe, matchIngredients, MAX_INGREDIENTS } from "@/lib/dupe"
 import { aiMatchIngredients } from "@/lib/dupe-ai"
 import type { DupeResult } from "@/lib/dupe-shared"
 import { platePhotos } from "@/lib/plate-photos"
@@ -56,7 +56,15 @@ export async function POST(request: Request) {
       return `${i.served_on === date ? "Today" : formatDay(i.served_on, { weekday: "short" })} ${i.meal_period}`
     }
     const matches = (ai?.matches ?? keyword).map((m, i) => {
-      const chosen = m.status === "missing" && keyword[i]?.item ? keyword[i] : m
+      const k = keyword[i]
+      // Use the keyword match when the AI gave up but the keywords found an
+      // item or a pantry staple, or when the AI put a lemon or lime on a dish
+      // named after it (Lemon Bar) instead of plain citrus.
+      const useKeyword =
+        !!k &&
+        ((m.status === "missing" && (k.item != null || k.status === "pantry")) ||
+          (citrusOf(m.ingredient) != null && m.item != null && citrusItem(m.item) == null))
+      const chosen = useKeyword ? k : m
       return chosen.item ? { ...chosen, item: { ...chosen.item, when: when(chosen.item.id) } } : chosen
     })
     const used = [...new Set(matches.flatMap((m) => (m.item ? [m.item.id] : [])))].map((id) => byId.get(id)!)
