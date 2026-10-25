@@ -9,10 +9,9 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     theme_color: "#BB0000",
     background_color: "#FAF7F2",
-    // Placeholders until the real logo is ready.
     icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { src: "/favicon.png", sizes: "50x50", type: "image/png" },
     ],
   }
 }

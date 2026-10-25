@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { SignOutIcon } from "@phosphor-icons/react"
 import { useTrackInAppNavigation } from "@/components/back-bar"
+import { Logo } from "@/components/logo"
 import { isActiveTab, TABS } from "@/components/nav-tabs"
 
 /** Phones (below md): fixed tab bar at the bottom. Always mounted, so it also tracks in-app navigation. */
@@ -44,13 +45,8 @@ export function TopNav() {
   return (
     <header className="sticky top-0 z-40 hidden border-b bg-background/95 backdrop-blur md:block">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-2" aria-label="BuckeyeBite home">
-          <span className="flex size-7 items-center justify-center bg-primary text-sm font-bold text-primary-foreground">
-            B
-          </span>
-          <span className="text-base font-bold tracking-tight">
-            Buckeye<span className="text-primary">Bite</span>
-          </span>
+        <Link href="/dashboard" className="shrink-0" aria-label="BuckeyeBites home">
+          <Logo className="h-9" />
         </Link>
 
         <nav aria-label="Main" className="flex flex-1 justify-center">

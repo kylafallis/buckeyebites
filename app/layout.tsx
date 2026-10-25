@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BuckeyeBites",
   description: "Ohio State dining, planned around you.",
-  icons: { apple: "/apple-touch-icon.png" },
+  icons: { icon: "/favicon.png", apple: "/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "BuckeyeBite", statusBarStyle: "default" },
   // Next only emits mobile-web-app-capable; older iOS versions need the Apple name.
   other: { "apple-mobile-web-app-capable": "yes" },

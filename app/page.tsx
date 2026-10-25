@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { HandPlatter, ShieldCheck, Sprout, type LucideIcon } from "lucide-react"
 import { LANDING_STATS } from "@/lib/landing-stats"
+import { Logo } from "@/components/logo"
 import { buttonVariants } from "@/components/ui/button"
 
 // Signed-in users never see this page: proxy.ts redirects them to /dashboard.
@@ -35,18 +36,10 @@ const STEPS = ["Tell us what you eat", "Swipe foods you love", "Tap Feed me"]
 export default function LandingPage() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="mx-auto flex w-full max-w-5xl items-center gap-2 px-4 pt-5 md:px-8">
-        <span className="flex size-8 items-center justify-center bg-primary text-base font-bold text-primary-foreground">
-          B
-        </span>
-        <span className="text-lg font-bold tracking-tight">
-          Buckeye<span className="text-primary">Bite</span>
-        </span>
-      </header>
-
       <main className="flex-1">
-        <section className="mx-auto w-full max-w-5xl px-4 pt-12 pb-14 md:px-8 md:pt-20 md:pb-20">
-          <h1 className="text-[2.5rem] leading-[1.05] font-bold tracking-tight md:text-6xl">
+        <section className="mx-auto w-full max-w-5xl px-4 pt-8 pb-14 md:px-8 md:pt-14 md:pb-20">
+          <Logo priority className="-ml-2 h-16 md:h-24" />
+          <h1 className="mt-6 text-[2.5rem] leading-[1.05] font-bold tracking-tight md:text-6xl">
             Your plate, <span className="text-primary">planned.</span>
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-foreground/80 md:text-lg">
