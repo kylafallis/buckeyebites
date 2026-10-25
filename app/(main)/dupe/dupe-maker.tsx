@@ -172,7 +172,11 @@ function DupeResultView({ result, userId }: { result: DupeResult; userId: string
       )}
 
       {result.recipeId == null ? (
-        <p className="text-sm text-muted-foreground">Nothing in this recipe is at Scott for you right now.</p>
+        <p className="text-sm text-muted-foreground">
+          {hasItems
+            ? "Only sauces matched, so there's no plate to save."
+            : "Nothing in this recipe is at Scott for you right now."}
+        </p>
       ) : (
         <PlateActions
           recipeId={result.recipeId}

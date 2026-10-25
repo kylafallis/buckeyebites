@@ -1,15 +1,17 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getSafeItems } from "@/lib/menu.server"
-import { currentMealPeriod, SCOTT_SLUG, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
+import { currentMealPeriod, isSauce, SCOTT_SLUG, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
 import { buildSteps, DupeError, fetchRecipe, matchIngredients, MAX_INGREDIENTS } from "@/lib/dupe"
+import { aiMatchIngredients } from "@/lib/dupe-ai"
 import type { DupeResult } from "@/lib/dupe-shared"
 import { computeTotals, type Totals } from "@/lib/totals"
 
 /**
- * Recipe dupe (no AI). Body: { url } or { ingredients } (one ingredient per
- * line). Matches the recipe to the user's safe items for the current meal at
- * Scott, saves it as a "dupe" recipe and returns the recipe id and matches.
+ * Recipe dupe. Body: { url } or { ingredients } (one ingredient per line).
+ * Matches the recipe to the user's safe items for the current meal at Scott
+ * (Gemini first, the keyword matcher if AI is unavailable), saves it as a
+ * "dupe" recipe and returns the recipe id and matches.
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -42,21 +44,24 @@ export async function POST(request: Request) {
       return Response.json({ error: `Scott's ${meal} menu isn't available for you right now.` }, { status: 422 })
     }
 
-    const matches = matchIngredients(ingredients, safeItems)
+    const ai = await aiMatchIngredients(recipe?.name ?? null, ingredients, meal, safeItems)
+    const matches = ai?.matches ?? matchIngredients(ingredients, safeItems)
     const byId = new Map(safeItems.map((i) => [i.id, i]))
     const used = [...new Set(matches.flatMap((m) => (m.item ? [m.item.id] : [])))].map((id) => byId.get(id)!)
     const totals = computeTotals(used.map((item) => ({ item, servings: 1 })))
     const title = `${recipe?.name ?? "Your recipe"}, Scott style`.slice(0, 80)
-    const steps = buildSteps(matches)
+    const steps = ai && ai.steps.length >= 3 ? ai.steps : buildSteps(matches)
 
     const result: DupeResult = {
-      recipeId: used.length > 0 ? await saveDupe(userId, meal, title, steps, used, totals) : null,
+      // Only sauces (or nothing) matched: there's no plate to save.
+      recipeId: used.some((item) => !isSauce(item)) ? await saveDupe(userId, meal, title, steps, used, totals) : null,
       title,
       meal,
       date,
       ingredients: matches,
       steps,
       totals,
+      method: ai ? "ai" : "keyword",
       sourceNutrition: recipe?.nutrition ?? null,
     }
     return Response.json(result)

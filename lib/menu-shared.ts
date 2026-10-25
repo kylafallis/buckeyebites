@@ -112,3 +112,29 @@ export function addDays(date: string, days: number) {
 export function formatDay(date: string, options: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric" }) {
   return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", ...options })
 }
+
+// Words that make a menu item a sauce or condiment rather than real food.
+export const SAUCE_WORDS = [
+  "sauce", "dressing", "ranch", "mayo", "mayonnaise", "mustard", "ketchup", "salsa", "pico de gallo", "gravy",
+  "syrup", "aioli", "vinaigrette", "dip", "relish", "sriracha", "hot sauce", "honey", "jam", "jelly", "glaze",
+  "sour cream", "butter", "cream cheese",
+] as const
+// Spreads that contain a sauce word but are real food.
+const NOT_SAUCE = /\b(?:peanut|almond|cashew|sunflower|seed) butter\b|\bseed spread\b/gi
+// A sauce word as the item's main (last) word, e.g. "Marinara Sauce", "Brown Gravy".
+const SAUCE_RE = new RegExp(String.raw`\b(?:${SAUCE_WORDS.map((w) => w.replace(/ /g, String.raw`\s+`)).join("|")})\s*$`, "i")
+
+/**
+ * True for condiments and sauces: food_group "condiment", or a name whose main
+ * word is a sauce word (whole words, case-insensitive). Anything after "with"
+ * is ignored, so dishes that come with a sauce stay real food. Quick checks:
+ *   "Marinara Sauce" true, "Chipotle Ranch" true, "Light Mayonnaise" true,
+ *   "Salted Butter" true, "Grilled Chicken Breast" false, "Grilled Cheese" false,
+ *   "Shredded Parmesan Cheese" false, "Gluten Free Sunflower Seed Spread" false,
+ *   "Butter Chicken" false, "Country Fried Steak with Gravy" false.
+ */
+export function isSauce(item: { name: string; food_group: string | null }) {
+  if (item.food_group === "condiment") return true
+  const dish = item.name.split(/\s+with\s+/i)[0].replace(NOT_SAUCE, " food")
+  return SAUCE_RE.test(dish)
+}

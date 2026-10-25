@@ -1,7 +1,7 @@
 import "server-only"
 import { lookup } from "node:dns/promises"
 import { isIP } from "node:net"
-import type { MenuItem } from "@/lib/menu-shared"
+import { isSauce, type MenuItem } from "@/lib/menu-shared"
 import type { DupeIngredient } from "@/lib/dupe-shared"
 
 // Recipe dupe, with no AI: read a recipe's schema.org data, clean each
@@ -333,6 +333,12 @@ const SYNONYMS: Record<string, string[]> = {
   "red bell pepper": ["pepper"],
   "green bell pepper": ["pepper"],
   "pico de gallo": ["salsa"],
+  salsa: ["salsa", "pico de gallo"],
+  "ranch dressing": ["ranch"],
+  ranch: ["ranch"],
+  dressing: ["dressing", "vinaigrette", "ranch"],
+  mayo: ["mayonnaise", "mayo"],
+  mayonnaise: ["mayonnaise", "mayo"],
   avocado: ["guacamole"],
   "sour cream": ["sour cream"],
   "broccoli floret": ["broccoli"],
@@ -411,8 +417,14 @@ function scoreItem(ingWords: string[], item: MenuItem): Omit<Candidate, "index" 
  * Best pairs are assigned first and each menu item is used once, unless an
  * ingredient has nothing else that fits.
  */
+/** True when an ingredient line is itself a sauce or condiment ("2 tbsp soy sauce", "sour cream"). */
+export function isSauceIngredient(ingredient: string) {
+  return isSauce({ name: cleanIngredient(ingredient), food_group: null })
+}
+
 export function matchIngredients(ingredients: string[], safeItems: MenuItem[]): DupeIngredient[] {
   const cleaned = ingredients.map(cleanIngredient)
+  const sauceIngredient = cleaned.map((text) => isSauce({ name: text, food_group: null }))
   const results: DupeIngredient[] = ingredients.map((ingredient, i) => ({
     ingredient,
     status: isPantry(cleaned[i]) ? "pantry" : "missing",
@@ -426,6 +438,8 @@ export function matchIngredients(ingredients: string[], safeItems: MenuItem[]): 
     const ingWords = words(text)
     if (ingWords.length === 0) return
     for (const item of safeItems) {
+      // A sauce item can only stand in for a sauce ingredient.
+      if (isSauce(item) && !sauceIngredient[index]) continue
       const s = scoreItem(ingWords, item)
       if (s) candidates.push({ index, item, ...s })
     }
