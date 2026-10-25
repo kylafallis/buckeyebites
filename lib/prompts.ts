@@ -25,7 +25,8 @@ MATCHING RULES
 - Toppings count: match lettuce, tomato, onion, pickles, jalapenos, salsa, sour cream, cilantro, lime, ketchup, mustard and other burger or taco toppings to the topping items listed.
 - status "matched": an available item is the same food (ignoring how it is cooked).
 - status "swapped": the closest reasonable alternative. Give a reason of 12 words or fewer.
-- status "pantry": salt, pepper, oil, water, sugar, flour, spices, unless an item with that name is on the list. Set id, name and station to null.
+- Lemons and limes are interchangeable: lemon, lemon juice, lemon zest or lemon wedges can use a plain Lime item (and lime can use a plain Lemon item) as "swapped". Only a plain citrus item counts, never a dish like Lemon Bar, Lemon Cupcake or Cilantro Lime Rice. If no plain lemon or lime is listed, lemon or lime juice is "pantry".
+- status "pantry": salt, pepper (any kind: kosher, sea, cracked, flakes), oil, butter, water, sugar, honey, flour, stock or broth, vinegar, baking basics, and dried or fresh herbs and spices (garlic, cumin, paprika, oregano, basil, parsley, chili flakes, ginger powder, cinnamon), unless an item with that name is on the list. Set id, name and station to null.
 - status "missing": nothing reasonable is available. Set id, name and station to null and give a short reason.
 - Never swap a sauce, condiment, dessert or topping in for a main ingredient (meat, grain, vegetable). A sauce ingredient (dressing, mayo, salsa) may match a sauce item.
 - Items with is_sauce true may only match sauce, dressing or condiment ingredients, never a main ingredient.

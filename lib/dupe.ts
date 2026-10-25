@@ -254,13 +254,25 @@ const PANTRY = new Set(
     "granulated sugar", "powdered sugar", "flour", "all-purpose flour", "vinegar", "white vinegar", "apple cider vinegar",
     "red wine vinegar", "rice vinegar", "balsamic vinegar", "baking soda", "baking powder", "cornstarch", "vanilla",
     "vanilla extract", "kosher salt", "sea salt", "black pepper", "white pepper", "ground black pepper", "garlic salt",
-    "lime juice", "lemon juice", "corn starch", "cornflour", "bi carb", "bicarbonate of soda",
+    "corn starch", "cornflour", "bi carb", "bicarbonate of soda",
     "cooking oil", "neutral oil", "stock", "broth", "bouillon",
+    // More salt, pepper, herbs and spices.
+    "peppercorn", "black peppercorn", "pepper flake", "chili flake", "red chili flake", "chile flake", "lemon pepper", "lemon pepper seasoning",
+    "seasoned salt", "seasoning salt", "onion salt", "celery salt", "msg", "old bay", "cajun seasoning",
+    "creole seasoning", "everything bagel seasoning", "poultry seasoning", "ranch seasoning", "pumpkin pie spice",
+    "ground ginger", "ginger powder", "curry powder", "garam masala", "turmeric", "ground coriander",
+    "allspice", "cardamom", "ground clove", "fennel seed", "caraway seed", "celery seed", "mustard seed",
+    "mustard powder", "dry mustard", "ground mustard", "chipotle powder", "ancho chili powder", "chili seasoning",
+    "basil", "parsley", "dill", "sage", "tarragon", "marjoram", "herb", "herbs", "herbes de provence",
+    "bay leaf", "garlic clove", "honey", "agave", "molasses", "cocoa powder", "yeast", "active dry yeast",
+    "instant yeast", "gelatin", "cream of tartar", "liquid smoke", "worcestershire sauce",
   ].map((p) => words(p).join(" "))
 )
 const PANTRY_QUALIFIERS = new Set(
   ["kosher", "sea", "black", "white", "ground", "extra", "virgin", "granulated", "fine", "coarse", "flaky", "cooking",
-   "table", "neutral", "chicken", "beef", "vegetable", "low", "sodium"].map(stem)
+   "table", "neutral", "chicken", "beef", "vegetable", "low", "sodium", "cracked", "crushed", "pinch", "dash",
+   "sprinkle", "flat", "leaf", "italian", "curly", "pure", "smoked", "pink", "himalayan", "iodized", "unsalted",
+   "salted"].map(stem)
 )
 
 function isPantry(cleaned: string) {
@@ -373,6 +385,7 @@ const SYNONYMS: Record<string, string[]> = {
   "soy sauce": ["soy sauce", "teriyaki"],
   "teriyaki sauce": ["teriyaki"],
   "green onion": ["onion"],
+  coriander: ["cilantro"],
   scallion: ["onion"],
   egg: ["egg"],
 }
@@ -395,6 +408,22 @@ const isPlainCheese = (item: MenuItem) => {
   return CHEESE_WORDS.test(s) && !NOT_PLAIN_CHEESE.test(s)
 }
 
+// Lemons and limes stand in for each other. A citrus ingredient (lime, lemon
+// juice, zest of 1 lemon, lime wedges) only matches a plain citrus item, never
+// a dish named after one (Lemon Bar, Cilantro Lime Rice).
+const CITRUS_EXTRAS = new Set(["juice", "zest", "wedge", "peel", "slice", "rind", "half", "fresh", "squeeze"].map(stem))
+/** "lemon" or "lime" when the cleaned ingredient is just that fruit, otherwise null. */
+export function citrusOf(cleanedOrLine: string): "lemon" | "lime" | null {
+  const core = words(cleanIngredient(cleanedOrLine)).filter((w) => !CITRUS_EXTRAS.has(w))
+  return core.length === 1 && (core[0] === "lemon" || core[0] === "lime") ? core[0] : null
+}
+/** "lemon" or "lime" when a menu item is plain citrus ("Lime", "Lemon Wedges"). */
+export function citrusItem(item: Pick<MenuItem, "name">): "lemon" | "lime" | null {
+  const core = words(item.name).filter((w) => !CITRUS_EXTRAS.has(w))
+  return core.length === 1 && (core[0] === "lemon" || core[0] === "lime") ? core[0] : null
+}
+const isCitrusJuice = (line: string) => citrusOf(line) != null && /\bjuice|juiced|squeeze\b/i.test(line)
+
 // Two-word foods that must match as a whole, so "cream" can't match "Ice Cream"
 // and "butter" can't match "Peanut Butter".
 const COMPOUNDS = [
@@ -407,7 +436,7 @@ const hasPhrase = (haystack: string[], phrase: string[]) => phrase.every((w) => 
 // ---------------------------------------------------------------------------
 // Matching
 
-type Candidate = { index: number; item: MenuItem; score: number; status: "matched" | "swapped" }
+type Candidate = { index: number; item: MenuItem; score: number; status: "matched" | "swapped"; reason?: string }
 
 // Main words too vague to swap on alone: "oyster sauce" shouldn't become "Pub Sauce".
 const GENERIC_HEADS = new Set(
@@ -495,6 +524,20 @@ export function matchIngredients(ingredients: string[], safeItems: MenuItem[], r
     if (results[index].status === "pantry") return
     const ingWords = words(text)
     if (ingWords.length === 0) return
+    // Citrus: the same fruit, or the other one as a swap. Nothing else.
+    const fruit = citrusOf(text)
+    if (fruit) {
+      for (const item of safeItems) {
+        const has = citrusItem(item)
+        if (!has) continue
+        candidates.push(
+          has === fruit
+            ? { index, item, score: 3, status: "matched" }
+            : { index, item, score: 0.95, status: "swapped", reason: `Scott has ${item.name} instead of ${fruit}` }
+        )
+      }
+      return
+    }
     for (const item of safeItems) {
       // A sauce item can only stand in for a sauce ingredient.
       if (isSauce(item) && !sauceIngredient[index]) continue
@@ -517,7 +560,7 @@ export function matchIngredients(ingredients: string[], safeItems: MenuItem[], r
       ingredient: ingredients[c.index],
       status: c.status,
       item: { id: c.item.id, name: c.item.name, station: c.item.station?.name ?? null },
-      reason: c.status === "swapped" ? `Scott has ${c.item.name} instead of ${cleaned[c.index]}` : "",
+      reason: c.reason ?? (c.status === "swapped" ? `Scott has ${c.item.name} instead of ${cleaned[c.index]}` : ""),
     }
   }
   const used = new Set<number>()
@@ -534,6 +577,11 @@ export function matchIngredients(ingredients: string[], safeItems: MenuItem[], r
     assign(c)
     done.add(c.index)
   }
+  // No lemon or lime on the menu this week: citrus juice is a pantry staple
+  // (bottled juice), a whole lemon or lime stays missing.
+  ingredients.forEach((line, i) => {
+    if (results[i].status === "missing" && isCitrusJuice(line)) results[i] = { ...results[i], status: "pantry" }
+  })
   return results
 }
 
