@@ -156,9 +156,14 @@ async function Dashboard() {
             ))}
           </div>
         )}
-        <Link href="/recipes" className={buttonVariants({ variant: "link", className: "mt-1 h-9 px-0 text-sm" })}>
-          Recipe book →
-        </Link>
+        <div className="mt-1 flex gap-5">
+          <Link href="/recipes" className={buttonVariants({ variant: "link", className: "h-9 px-0 text-sm" })}>
+            Recipe book →
+          </Link>
+          <Link href="/insights" className={buttonVariants({ variant: "link", className: "h-9 px-0 text-sm" })}>
+            Insights →
+          </Link>
+        </div>
       </Section>
     </>
   )
