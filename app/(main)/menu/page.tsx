@@ -5,7 +5,6 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems, getSafeSampleItems } from "@/lib/menu.server"
 import { currentMealPeriod, MEAL_PERIODS, SCOTT_SLUG, todayInColumbus } from "@/lib/menu-shared"
-import { FeedMeButton } from "@/components/feed-me-button"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { PageContainer } from "@/components/page-container"
 import { MenuBrowser } from "./menu-browser"
@@ -69,12 +68,6 @@ async function LiveMenu({ userId, slug }: { userId: string; slug: string }) {
 
   return (
     <>
-      {/* Feed me builds plates from Scott's menu only. */}
-      {slug === SCOTT_SLUG && (
-        <div className="mt-4 md:max-w-sm">
-          <FeedMeButton defaultMeal={currentMealPeriod()} />
-        </div>
-      )}
       <MenuBrowser
         menus={{ breakfast: lists[0], lunch: lists[1], dinner: lists[2] }}
         defaultPeriod={currentMealPeriod()}

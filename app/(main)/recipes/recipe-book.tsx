@@ -31,6 +31,7 @@ export function RecipeBook({
   /** null when saving isn't available (saved_recipes table missing). */
   savedIds: number[] | null
 }) {
+  const [tab, setTab] = useState<"all" | "liked">("all")
   const [meal, setMeal] = useState<MealPeriod | null>(null)
   const [diet, setDiet] = useState<RecipeDiet | null>(null)
   const [nutrient, setNutrient] = useState<string | null>(null)
@@ -41,11 +42,12 @@ export function RecipeBook({
     () =>
       cards.filter(
         (c) =>
+          (tab === "all" || saved.has(c.id)) &&
           (!meal || c.meals.includes(meal)) &&
           (!diet || c.diets.includes(diet)) &&
           (!nutrient || c.nutrientTags.includes(nutrient))
       ),
-    [cards, meal, diet, nutrient]
+    [cards, tab, saved, meal, diet, nutrient]
   )
 
   async function toggleSave(recipeId: number) {
@@ -66,12 +68,34 @@ export function RecipeBook({
       : await table.upsert({ user_id: userId, recipe_id: recipeId }, { ignoreDuplicates: true })
     if (error) {
       flip(wasSaved)
-      setError("Couldn't update your saved recipes. Try again.")
+      setError("Couldn't update your liked plates. Try again.")
     }
   }
 
   return (
     <div className="mt-4 flex flex-col gap-3">
+      <div role="tablist" aria-label="Recipe book" className="flex w-fit gap-1 rounded-full bg-muted p-1">
+        {(
+          [
+            ["all", "All plates"],
+            ["liked", `Liked${savedIds === null ? "" : ` (${cards.filter((c) => saved.has(c.id)).length})`}`],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => setTab(value)}
+            className={`flex min-h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold ${
+              tab === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {value === "liked" && <HeartIcon className="size-4" weight={tab === value ? "fill" : "regular"} aria-hidden />}
+            {label}
+          </button>
+        ))}
+      </div>
       <FilterRow label="Meal" options={MEALS} value={meal} onChange={setMeal} />
       <FilterRow label="Diet" options={DIETS} value={diet} onChange={setDiet} />
       <FilterRow label="Nutrient" options={NUTRIENTS} value={nutrient} onChange={setNutrient} />
@@ -84,14 +108,20 @@ export function RecipeBook({
 
       {shown.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">
-          {cards.length === 0 ? "No plates fit you on today's menu yet." : "No recipes match these filters."}
+          {tab === "liked" && ![...saved].some((id) => cards.some((c) => c.id === id))
+            ? savedIds === null
+              ? "Liking plates isn't set up yet."
+              : "Tap the heart on a plate to keep it here. Liked plates show up on days they fit Scott's menu."
+            : cards.length === 0
+              ? "No plates fit you on today's menu yet."
+              : "No recipes match these filters."}
         </p>
       ) : (
         <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {shown.map((card) => {
             const isSaved = saved.has(card.id)
             return (
-              <li key={card.id} className="relative border bg-card p-4 hover:bg-muted/40">
+              <li key={card.id} className="relative overflow-hidden rounded-2xl bg-card p-4 hover:bg-muted/40">
                 <PlatePhoto photos={card.photos} className="-mx-4 -mt-4 mb-3 aspect-[16/9]" />
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -110,12 +140,12 @@ export function RecipeBook({
                     onClick={() => toggleSave(card.id)}
                     disabled={savedIds === null}
                     aria-pressed={isSaved}
-                    aria-label={isSaved ? `Unsave ${card.title}` : `Save ${card.title}`}
-                    title={savedIds === null ? "Saving isn't set up yet" : undefined}
-                    className="relative z-10 -m-1 flex size-9 shrink-0 items-center justify-center text-primary disabled:opacity-40"
+                    aria-label={isSaved ? `Unlike ${card.title}` : `Like ${card.title}`}
+                    title={savedIds === null ? "Liking isn't set up yet" : undefined}
+                    className="relative z-10 -m-1.5 flex size-11 shrink-0 items-center justify-center text-primary disabled:opacity-40"
                   >
                     <HeartIcon className="size-5" weight={isSaved ? "fill" : "regular"} />
-                    <span className="sr-only">{isSaved ? "Saved" : "Save"}</span>
+                    <span className="sr-only">{isSaved ? "Liked" : "Like"}</span>
                   </button>
                 </div>
                 <ul className="mt-2 flex flex-col gap-0.5">
@@ -158,8 +188,8 @@ function FilterRow<T extends string>({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(on ? null : o.value)}
-            className={`h-8 shrink-0 border px-3 text-xs font-medium transition-colors ${
-              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted"
+            className={`h-9 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+              on ? "bg-accent text-primary" : "bg-card text-foreground hover:bg-muted"
             }`}
           >
             {o.label}
