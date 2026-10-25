@@ -75,7 +75,9 @@ async function Dashboard() {
       }),
   ])
 
-  const name = profile.data?.display_name?.trim()
+  // Fall back to the name given at signup if the profile doesn't have one yet.
+  const signupName = (claims?.claims?.user_metadata as { display_name?: unknown } | undefined)?.display_name
+  const name = profile.data?.display_name?.trim() || (typeof signupName === "string" ? signupName.trim() : "")
   const mealLogs = (logs.data ?? []) as unknown as MealLog[]
   const foods = mealLogs.flatMap(
     (log) => log.recipes?.recipe_items.map((ri) => ri.menu_items).filter((f): f is LoggedFood => !!f) ?? []
