@@ -18,6 +18,7 @@ export function PlateActions({
   planDate,
   totals,
   canLog,
+  retry = true,
 }: {
   recipeId: number
   userId: string
@@ -25,6 +26,8 @@ export function PlateActions({
   planDate: string
   totals: Totals
   canLog: boolean
+  /** Show "Try again" (a new Feed me plate). Off for recipe dupes. */
+  retry?: boolean
 }) {
   const router = useRouter()
   const [logged, setLogged] = useState<Status>("idle")
@@ -95,15 +98,17 @@ export function PlateActions({
             "Save"
           )}
         </Button>
-        <Button variant="outline" className="h-12 flex-1 text-sm" onClick={tryAgain} disabled={retrying}>
-          {retrying ? (
-            <>
-              <CircleNotchIcon className="animate-spin" /> Building your plate...
-            </>
-          ) : (
-            "Try again"
-          )}
-        </Button>
+        {retry && (
+          <Button variant="outline" className="h-12 flex-1 text-sm" onClick={tryAgain} disabled={retrying}>
+            {retrying ? (
+              <>
+                <CircleNotchIcon className="animate-spin" /> Building your plate...
+              </>
+            ) : (
+              "Try again"
+            )}
+          </Button>
+        )}
       </div>
       {error && (
         <p className="text-sm text-destructive" role="alert">
