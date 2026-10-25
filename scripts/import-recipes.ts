@@ -4,8 +4,10 @@
 //   npx tsx scripts/import-recipes.ts             import
 //   npx tsx scripts/import-recipes.ts --dry-run   check names only, write nothing
 //
-// CSV columns: title, meal_period, item_names, stations, why, steps, tags.
-// item_names, stations, steps and tags hold several values separated by ";".
+// CSV columns: title, meal_period, item_names, why, plus optional servings,
+// steps (or "station order", stations separated by ">"), tags.
+// item_names, steps and tags hold several values separated by ";"; servings
+// is one number per food, in the same order, separated by "," or ";".
 // Needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local.
 // Safe to run again: titles that already exist are skipped.
 
@@ -113,6 +115,10 @@ async function main() {
     const meal = key(r.meal_period ?? "")
     if (!MEALS.includes(meal)) problems.push(`Line ${line} "${title}": meal_period "${r.meal_period ?? ""}" must be breakfast, lunch or dinner`)
     const names = list(r.item_names)
+    const servingsList = (r.servings ?? "").split(/[;,]/).map((x) => x.trim()).filter(Boolean).map(Number)
+    if (servingsList.length > 0 && (servingsList.length !== names.length || servingsList.some((n) => !(n > 0 && n <= 3)))) {
+      problems.push(`Line ${line} "${title}": servings "${r.servings}" needs one number from 0.5 to 3 per food`)
+    }
     if (names.length < 2 || names.length > 4) problems.push(`Line ${line} "${title}": has ${names.length} foods, needs 2 to 4`)
 
     const items = names.map((name) => {
@@ -140,9 +146,11 @@ async function main() {
       title,
       meal,
       why: r.why?.trim() || null,
-      steps: list(r.steps),
+      steps: r.steps?.trim()
+        ? list(r.steps)
+        : (r["station order"] ?? "").split(">").map((x) => x.trim()).filter(Boolean),
       tags: [...new Set([...list(r.tags).map(key), meal])],
-      items: items.filter((x): x is MenuRow => !!x),
+      items: items.flatMap((item, j) => (item ? [{ item, servings: servingsList[j] ?? 1 }] : [])),
       days,
     }
   })
@@ -189,7 +197,7 @@ async function main() {
         location_id: location.id,
         steps: p.steps,
         tags: p.tags,
-        totals: computeTotals(p.items.map((item) => ({ item, servings: 1 }))),
+        totals: computeTotals(p.items),
       })
       .select("id")
       .single()
@@ -197,7 +205,7 @@ async function main() {
 
     const { error: itemsError } = await supabase
       .from("recipe_items")
-      .insert(p.items.map((item) => ({ recipe_id: recipe.id, menu_item_id: item.id, servings: 1 })))
+      .insert(p.items.map(({ item, servings }) => ({ recipe_id: recipe.id, menu_item_id: item.id, servings })))
     if (itemsError) {
       await supabase.from("recipes").delete().eq("id", recipe.id)
       fail(`Inserting foods for "${p.title}" failed: ${itemsError.message}`)
