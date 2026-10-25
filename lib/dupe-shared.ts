@@ -9,7 +9,7 @@ export type DupeIngredient = {
   quantity?: string | null
   status: "matched" | "swapped" | "pantry" | "missing"
   /** The Scott item it maps to; null for pantry and missing. */
-  item: { id: number; name: string; station: string | null } | null
+  item: { id: number; name: string; station: string | null; when?: string | null } | null
   /** For swaps: "Scott has X instead of Y". */
   reason: string
 }

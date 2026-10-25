@@ -146,10 +146,11 @@ function DupeResultView({ result, userId }: { result: DupeResult; userId: string
                     {ing.status === "swapped" ? "Use " : ""}
                     {ing.item.name}
                     {ing.item.station && ` · ${ing.item.station}`}
+                    {ing.item.when && <span className="text-muted-foreground"> · served {ing.item.when}</span>}
                   </p>
                 )}
                 {ing.status === "swapped" && ing.reason && <p className="text-xs text-[#8A6700]">{ing.reason}</p>}
-                {ing.status === "missing" && <p className="text-xs text-muted-foreground">Not at Scott right now</p>}
+                {ing.status === "missing" && <p className="text-xs text-muted-foreground">Not at Scott this week</p>}
                 {ing.status === "pantry" && <p className="text-xs text-muted-foreground">Pantry staple, skip it</p>}
               </div>
             </li>

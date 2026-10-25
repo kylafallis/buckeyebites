@@ -1,6 +1,6 @@
 import "server-only"
 import { createClient } from "@/lib/supabase/server"
-import { fitsDiet, isPlateItem, profileDiets, SCOTT_SLUG, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
+import { fitsDiet, foodKey, isPlateItem, profileDiets, SCOTT_SLUG, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
 
 const COLUMNS = `
   id, name, meal_period, served_on, serving_size, image_url,
@@ -11,6 +11,7 @@ const COLUMNS = `
 `
 
 const SAMPLE_LIMIT = 60
+const PAGE_SIZE = 1000 // Supabase returns at most 1000 rows per request.
 
 /**
  * Live menu items for one meal that are safe for this user: no overlap with
@@ -40,6 +41,46 @@ export async function getSafeItems(
     .eq("served_on", date)
     .order("name")
   return filterSafe(userId, rows, { forPlate })
+}
+
+/**
+ * Every live Scott food on any day and meal of the synced week, safe for this
+ * user, one row per food name. For the recipe dupe, so it works whatever day
+ * it is. When a food is served more than once, the row for `prefer` (today's
+ * current meal) wins, then the rest of today, then the soonest upcoming day.
+ */
+export async function getSafeWeekItems(
+  userId: string,
+  prefer: { date: string; meal: MealPeriod }
+): Promise<MenuItem[]> {
+  const supabase = await createClient()
+  const rows: unknown[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("menu_items")
+      .select(COLUMNS)
+      .eq("locations.slug", SCOTT_SLUG)
+      .eq("locations.is_live", true)
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    rows.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  const safe = await filterSafe(userId, Promise.resolve({ data: rows, error: null }), { forPlate: false })
+
+  const rank = (i: MenuItem) =>
+    i.served_on === prefer.date
+      ? i.meal_period === prefer.meal ? 0 : 1
+      : i.served_on > prefer.date ? 2 : 3
+  safe.sort((a, b) => rank(a) - rank(b) || a.served_on.localeCompare(b.served_on) || a.name.localeCompare(b.name))
+  const seen = new Set<string>()
+  return safe.filter((i) => {
+    const key = foodKey(i.name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**

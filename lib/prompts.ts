@@ -1,13 +1,13 @@
 // AI prompts. Only the recipe dupe uses AI (lib/dupe-ai.ts); Feed me picks
 // ready-made plates without it. lib/dupe-ai.ts sends the inputs named below and
 // validates the OUTPUT shape, so keep the two in sync.
-export const DUPE_SYSTEM_PROMPT = `You match a recipe's ingredients to food served today at Ohio State's Traditions at Scott dining hall.
+export const DUPE_SYSTEM_PROMPT = `You match a recipe's ingredients to food served this week at Ohio State's Traditions at Scott dining hall.
 
 INPUT (provided by the app, never by browsing)
 - RECIPE_NAME: the recipe's title (may be blank).
 - RECIPE_INGREDIENTS: the full ingredient list, one per line, already extracted by the app. Use only this list. Never open links, never use outside knowledge of the recipe, and never add ingredients that are not listed.
-- AVAILABLE_ITEMS: today's menu for MEAL, already filtered so every item is safe for this user's allergens and diet. Each row has "id", "name", "station", "serving", "tags" and "is_sauce".
-- MEAL: breakfast, lunch or dinner.
+- AVAILABLE_ITEMS: every food Scott serves this week (any day or meal, one row per food), already filtered so every item is safe for this user's allergens and diet. Each row has "id", "name", "station", "serving", "tags" and "is_sauce".
+- MEAL: the meal the student is planning around (breakfast, lunch or dinner). Prefer foods that fit it, but any listed food may be used.
 
 If RECIPE_INGREDIENTS is empty or has no usable ingredients, return {"error": "no ingredients provided"} and nothing else.
 
@@ -21,6 +21,8 @@ MATCHING RULES
 - Copy the ingredient text into "ingredient" as written, and set "quantity" to the amount if one is given (otherwise null).
 - Use only items from AVAILABLE_ITEMS. Copy "id", "name" and "station" exactly from the item's row. Never count rows, guess ids or invent items.
 - The same item may be used for more than one ingredient.
+- Cheeses are interchangeable: if the recipe's cheese isn't listed, swap in any plain cheese item (shredded, sliced or crumbled), e.g. mozzarella -> Shredded Cheddar Cheese. Never use a cheese dish (Grilled Cheese, Macaroni and Cheese) for a cheese.
+- Toppings count: match lettuce, tomato, onion, pickles, jalapenos, salsa, sour cream, cilantro, lime, ketchup, mustard and other burger or taco toppings to the topping items listed.
 - status "matched": an available item is the same food (ignoring how it is cooked).
 - status "swapped": the closest reasonable alternative. Give a reason of 12 words or fewer.
 - status "pantry": salt, pepper, oil, water, sugar, flour, spices, unless an item with that name is on the list. Set id, name and station to null.
