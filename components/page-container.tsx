@@ -5,14 +5,17 @@
  */
 export function PageContainer({
   narrow = false,
+  wide = false,
   className = "",
   children,
 }: {
   narrow?: boolean
+  /** max-w-7xl, for two-column pages like the Plan calendar. */
+  wide?: boolean
   className?: string
   children: React.ReactNode
 }) {
   return (
-    <main className={`mx-auto w-full px-4 py-6 ${narrow ? "max-w-2xl" : "max-w-5xl"} ${className}`}>{children}</main>
+    <main className={`mx-auto w-full px-4 py-6 ${narrow ? "max-w-2xl" : wide ? "max-w-7xl" : "max-w-5xl"} ${className}`}>{children}</main>
   )
 }
