@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { PageContainer } from "@/components/page-container"
 import { DupeMaker } from "./dupe-maker"
 
 export const metadata: Metadata = {
@@ -14,12 +15,12 @@ export default async function DupePage() {
   if (!userId) redirect("/login")
 
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-6">
+    <PageContainer narrow>
       <h1 className="text-xl font-semibold">Recipe dupe</h1>
       <p className="text-sm text-muted-foreground">
         Found a recipe online? We&apos;ll make it from what&apos;s at Scott right now.
       </p>
       <DupeMaker userId={userId} />
-    </main>
+    </PageContainer>
   )
 }

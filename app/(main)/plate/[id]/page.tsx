@@ -8,6 +8,8 @@ import { currentMealPeriod, MEAL_PERIODS, todayInColumbus, type MealPeriod, type
 import { foodKey } from "@/lib/plate"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { computeTotals, TOTAL_FIELDS, totalsForMode } from "@/lib/totals"
+import { BackBar } from "@/components/back-bar"
+import { PageContainer } from "@/components/page-container"
 import { PlateActions } from "./plate-actions"
 
 export const metadata: Metadata = {
@@ -182,10 +184,11 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
 
 export default function PlatePage({ params }: PageProps<"/plate/[id]">) {
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-6">
+    <PageContainer narrow>
+      <BackBar />
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading your plate…</p>}>
         <Plate params={params} />
       </Suspense>
-    </main>
+    </PageContainer>
   )
 }

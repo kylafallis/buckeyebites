@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems } from "@/lib/menu.server"
 import { currentMealPeriod, MEAL_PERIODS, todayInColumbus } from "@/lib/menu-shared"
+import { PageContainer } from "@/components/page-container"
 import { MenuBrowser } from "./menu-browser"
 
 export const metadata: Metadata = {
@@ -33,12 +34,12 @@ async function ScottMenu() {
 
 export default function MenuPage() {
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-6">
+    <PageContainer>
       <h1 className="text-xl font-semibold">Scott</h1>
       <p className="text-sm text-muted-foreground">Today&apos;s menu, filtered for you.</p>
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading menu…</p>}>
         <ScottMenu />
       </Suspense>
-    </main>
+    </PageContainer>
   )
 }

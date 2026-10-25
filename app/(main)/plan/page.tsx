@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { addDays, todayInColumbus } from "@/lib/menu-shared"
+import { PageContainer } from "@/components/page-container"
 import { WeekPlan, type Slots } from "./week-plan"
 
 export const metadata: Metadata = {
@@ -45,12 +46,12 @@ async function Plan() {
 
 export default function PlanPage() {
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-6 md:max-w-6xl">
+    <PageContainer>
       <h1 className="text-xl font-semibold">Meal plan</h1>
       <p className="text-sm text-muted-foreground">Your week at Scott, starting today.</p>
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading your plan…</p>}>
         <Plan />
       </Suspense>
-    </main>
+    </PageContainer>
   )
 }

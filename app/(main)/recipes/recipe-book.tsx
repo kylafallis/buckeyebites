@@ -86,7 +86,7 @@ export function RecipeBook({
           {cards.length === 0 ? "No plates fit you on today's menu yet." : "No recipes match these filters."}
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {shown.map((card) => {
             const isSaved = saved.has(card.id)
             return (

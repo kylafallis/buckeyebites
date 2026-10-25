@@ -9,8 +9,9 @@ import { columbusDayHour, currentMealPeriod, NUTRIENT_TAGS, SCOTT_SLUG, todayInC
 import { safeCuratedPlates, type CuratedPlate } from "@/lib/plate"
 import { labelFor, NUTRIENTS } from "@/lib/preferences"
 import { ProgressRing } from "@/components/progress-ring"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { PageContainer } from "@/components/page-container"
 import { FeedMeButton } from "./feed-me-button"
 
 export const metadata: Metadata = {
@@ -93,55 +94,62 @@ async function Dashboard() {
         {traffic.data?.busy_pct != null && <TrafficPill busyPct={traffic.data.busy_pct} />}
       </header>
 
-      <div className="mt-5">
-        <FeedMeButton />
+      {/* Phones: one column. md+: Feed me and progress left, today's meals right. */}
+      <div className="md:grid md:grid-cols-2 md:gap-x-8">
+        <div>
+          <div className="mt-5">
+            <FeedMeButton />
+          </div>
+
+          <Section title="Today's progress">
+            <Card>
+              <CardContent>
+                <Progress
+                  mode={profile.data?.mode ?? "balanced"}
+                  focusNutrients={profile.data?.focus_nutrients ?? []}
+                  goals={(profile.data?.goals ?? {}) as Record<string, unknown>}
+                  foods={foods}
+                  logs={mealLogs}
+                />
+              </CardContent>
+            </Card>
+          </Section>
+        </div>
+
+        <div className="md:mt-5">
+          <Section title="Today's meals" className="md:mt-0">
+            {mealLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing logged yet. Tap Feed me to start.</p>
+            ) : (
+              <ul className="divide-y border-y bg-card">
+                {mealLogs.map((log) => (
+                  <li key={log.id} className="flex items-baseline justify-between gap-3 px-3 py-2.5">
+                    <span>
+                      <span className="block text-sm font-medium">{log.recipes?.title ?? "Your plate"}</span>
+                      <span className="block text-xs text-muted-foreground capitalize">{log.meal_period ?? "Meal"}</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {new Date(log.created_at).toLocaleTimeString("en-US", {
+                        timeZone: TIME_ZONE,
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        </div>
       </div>
 
-      <Section title="Today's progress">
-        <Card>
-          <CardContent>
-            <Progress
-              mode={profile.data?.mode ?? "balanced"}
-              focusNutrients={profile.data?.focus_nutrients ?? []}
-              goals={(profile.data?.goals ?? {}) as Record<string, unknown>}
-              foods={foods}
-              logs={mealLogs}
-            />
-          </CardContent>
-        </Card>
-      </Section>
-
-      <Section title="Today's meals">
-        {mealLogs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing logged yet. Tap Feed me to start.</p>
-        ) : (
-          <ul className="divide-y border-y bg-card">
-            {mealLogs.map((log) => (
-              <li key={log.id} className="flex items-baseline justify-between gap-3 px-3 py-2.5">
-                <span>
-                  <span className="block text-sm font-medium">{log.recipes?.title ?? "Your plate"}</span>
-                  <span className="block text-xs text-muted-foreground capitalize">{log.meal_period ?? "Meal"}</span>
-                </span>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {new Date(log.created_at).toLocaleTimeString("en-US", {
-                    timeZone: TIME_ZONE,
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
-
-      <Section title="Plates for you">
+      <Section title="Plates for you" className="md:mt-8">
         {plates.length === 0 ? (
           <p className="text-sm text-muted-foreground">More plates coming soon.</p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {plates.slice(0, 3).map((plate) => (
-              <Card key={plate.id} size="sm">
+              <Card key={plate.id} size="sm" className="justify-between">
                 <CardHeader>
                   <CardTitle>{plate.title ?? "Scott plate"}</CardTitle>
                 </CardHeader>
@@ -161,19 +169,13 @@ async function Dashboard() {
           Recipe book →
         </Link>
       </Section>
-
-      <form action="/auth/signout" method="post" className="mt-8 flex justify-center">
-        <Button type="submit" variant="ghost" className="text-muted-foreground">
-          Sign out
-        </Button>
-      </form>
     </>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, className = "", children }: { title: string; className?: string; children: React.ReactNode }) {
   return (
-    <section className="mt-6">
+    <section className={`mt-6 ${className}`}>
       <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
       {children}
     </section>
@@ -303,10 +305,10 @@ function Progress({
 
 export default function DashboardPage() {
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-6">
+    <PageContainer>
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>}>
         <Dashboard />
       </Suspense>
-    </main>
+    </PageContainer>
   )
 }

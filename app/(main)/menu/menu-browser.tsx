@@ -129,13 +129,13 @@ export function MenuBrowser({
             >
               {station}
             </h2>
-            <ul className="divide-y border-y bg-card">
+            <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
               {stationItems.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
                     onClick={() => setSelected(item)}
-                    className="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted"
+                    className="flex h-full min-h-14 w-full items-center gap-3 border bg-card px-3 py-2 text-left hover:bg-muted"
                   >
                     <span className="flex-1">
                       <span className="block text-sm font-medium">{item.name}</span>

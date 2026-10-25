@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { recipeBook } from "@/lib/recipes"
+import { PageContainer } from "@/components/page-container"
 import { RecipeBook } from "./recipe-book"
 
 export const metadata: Metadata = {
@@ -33,12 +34,12 @@ async function Recipes() {
 
 export default function RecipesPage() {
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-6">
+    <PageContainer>
       <h1 className="text-xl font-semibold">Recipe book</h1>
       <p className="text-sm text-muted-foreground">Plates that fit you on today&apos;s Scott menu.</p>
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading recipes…</p>}>
         <Recipes />
       </Suspense>
-    </main>
+    </PageContainer>
   )
 }
