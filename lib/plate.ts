@@ -1,5 +1,5 @@
 import "server-only"
-import { GoogleGenAI } from "@google/genai"
+import { ApiError, GoogleGenAI, ThinkingLevel } from "@google/genai"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getSafeItems } from "@/lib/menu.server"
@@ -19,6 +19,8 @@ const MIN_ITEMS = 2
 const MAX_ITEMS = 4
 const MAX_REASON_WORDS = 25
 const PREVIOUS_PLATE_COUNT = 5
+// Each Gemini call gets this long before we give up, so Feed me never hangs.
+const MODEL_TIMEOUT_MS = 25_000
 
 // What each DIET value means in AVAILABLE_ITEMS' Tags, so the model's tag
 // check matches getSafeItems (which has already applied it).
@@ -175,16 +177,31 @@ async function askModel(ctx: Context, feedback?: string): Promise<unknown> {
     ? `${userPrompt(ctx)}\n\nYour previous answer was rejected: ${feedback}. Fix it and answer again.`
     : userPrompt(ctx)
 
-  const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
-    contents,
-    config: {
-      systemInstruction: PLATE_SYSTEM_PROMPT,
-      responseMimeType: "application/json",
-      responseJsonSchema: RESPONSE_SCHEMA,
-      temperature: 0.7,
-    },
-  })
+  const request = (lowThinking: boolean) =>
+    ai.models.generateContent({
+      model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
+      contents,
+      config: {
+        systemInstruction: PLATE_SYSTEM_PROMPT,
+        responseMimeType: "application/json",
+        responseJsonSchema: RESPONSE_SCHEMA,
+        temperature: 0.7,
+        // Picking 2-4 foods is easy; the default deep thinking takes minutes.
+        ...(lowThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+        httpOptions: { timeout: MODEL_TIMEOUT_MS },
+      },
+    })
+
+  const started = Date.now()
+  let response
+  try {
+    response = await request(true)
+  } catch (error) {
+    // Older models don't accept thinkingLevel; ask once more without it.
+    if (!(error instanceof ApiError && error.status === 400 && /thinking/i.test(error.message))) throw error
+    response = await request(false)
+  }
+  console.log(`Gemini answered in ${((Date.now() - started) / 1000).toFixed(1)}s`)
   return JSON.parse(response.text ?? "")
 }
 
@@ -355,6 +372,7 @@ export async function buildPlate(
   userId: string
 ): Promise<{ recipeId: number; source: "ai" | "curated" }> {
   const ctx = await loadContext(supabase, userId)
+  let aiBusy = false
 
   if (ctx.items.length >= MIN_ITEMS) {
     let feedback: string | undefined
@@ -366,6 +384,12 @@ export async function buildPlate(
         console.warn(`Plate attempt ${attempt + 1} rejected: ${feedback}`)
       } catch (error) {
         console.error(`Plate attempt ${attempt + 1} failed:`, error)
+        // Rate limit, bad key or timeout: retrying right away won't help.
+        if (error instanceof ApiError && [401, 403, 429].includes(error.status)) {
+          aiBusy = error.status === 429
+          break
+        }
+        if (error instanceof Error && /abort|timeout/i.test(error.name + error.message)) break
         feedback = "the response could not be parsed as the required JSON"
       }
     }
@@ -377,7 +401,9 @@ export async function buildPlate(
   throw new PlateError(
     ctx.items.length < MIN_ITEMS
       ? "There aren't enough items on Scott's menu for you right now."
-      : "We couldn't build a plate right now. Try again in a minute.",
+      : aiBusy
+        ? "The AI hit its free usage limit. Wait about a minute, then try again."
+        : "We couldn't build a plate right now. Try again in a minute.",
     ctx.items.length < MIN_ITEMS ? 422 : 503
   )
 }
