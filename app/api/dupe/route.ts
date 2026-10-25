@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getSafeItems } from "@/lib/menu.server"
-import { currentMealPeriod, isSauce, SCOTT_SLUG, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
+import { getSafeWeekItems } from "@/lib/menu.server"
+import { currentMealPeriod, formatDay, isSauce, SCOTT_SLUG, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
 import { buildSteps, DupeError, fetchRecipe, matchIngredients, MAX_INGREDIENTS } from "@/lib/dupe"
 import { aiMatchIngredients } from "@/lib/dupe-ai"
 import type { DupeResult } from "@/lib/dupe-shared"
@@ -10,9 +10,10 @@ import { computeTotals, type Totals } from "@/lib/totals"
 
 /**
  * Recipe dupe. Body: { url } or { ingredients } (one ingredient per line).
- * Matches the recipe to the user's safe items for the current meal at Scott
- * (Gemini first, the keyword matcher if AI is unavailable), saves it as a
- * "dupe" recipe and returns the recipe id and matches.
+ * Matches the recipe to every food Scott serves this week that's safe for the
+ * user, whatever day it is (Gemini first, the keyword matcher if AI is
+ * unavailable or misses a line), saves it as a "dupe" recipe and returns the
+ * recipe id and matches. Foods not on today's current meal say when they're served.
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -39,15 +40,25 @@ export async function POST(request: Request) {
 
     const meal = currentMealPeriod()
     const date = todayInColumbus()
-    // Only foods that pass getSafeItems can be matched.
-    const safeItems = await getSafeItems(userId, meal, date)
+    // Only foods that pass the allergen and diet filter can be matched, from any day this week.
+    const safeItems = await getSafeWeekItems(userId, { date, meal })
     if (safeItems.length === 0) {
-      return Response.json({ error: `Scott's ${meal} menu isn't available for you right now.` }, { status: 422 })
+      return Response.json({ error: "Scott's menu isn't available for you right now." }, { status: 422 })
     }
 
     const ai = await aiMatchIngredients(recipe?.name ?? null, ingredients, meal, safeItems)
-    const matches = ai?.matches ?? matchIngredients(ingredients, safeItems)
+    const keyword = matchIngredients(ingredients, safeItems, recipe?.name)
+    // A line the AI gave up on uses the keyword match when there is one.
     const byId = new Map(safeItems.map((i) => [i.id, i]))
+    const when = (id: number) => {
+      const i = byId.get(id)
+      if (!i || (i.served_on === date && i.meal_period === meal)) return null
+      return `${i.served_on === date ? "Today" : formatDay(i.served_on, { weekday: "short" })} ${i.meal_period}`
+    }
+    const matches = (ai?.matches ?? keyword).map((m, i) => {
+      const chosen = m.status === "missing" && keyword[i]?.item ? keyword[i] : m
+      return chosen.item ? { ...chosen, item: { ...chosen.item, when: when(chosen.item.id) } } : chosen
+    })
     const used = [...new Set(matches.flatMap((m) => (m.item ? [m.item.id] : [])))].map((id) => byId.get(id)!)
     const totals = computeTotals(used.map((item) => ({ item, servings: 1 })))
     const title = `${recipe?.name ?? "Your recipe"}, Scott style`.slice(0, 80)

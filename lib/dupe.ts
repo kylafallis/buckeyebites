@@ -216,8 +216,11 @@ function cleanPart(part: string) {
  * Of alternatives ("800g / 28 oz crushed tomato", "cornflour / corn starch"),
  * keeps the first one that still names a food.
  */
+// "jalapeño" -> "jalapeno", so accented letters aren't dropped as symbols.
+const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+
 function cleanIngredient(text: string): string {
-  let s = text.toLowerCase()
+  let s = plain(text).toLowerCase()
   s = s.replace(/\([^)]*\)/g, " ") // (8 oz), (optional)
   s = s.replace(/[¼½¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚]/g, " ")
   s = s.replace(/\d+(?:\s*[./–-]\s*\d+)*/g, " ") // 1, 1/2, 1.5, 5 - 6
@@ -235,7 +238,7 @@ function stem(word: string) {
   if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1)
   return word
 }
-const words = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean).map(stem)
+const words = (s: string) => plain(s).toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean).map(stem)
 
 // ---------------------------------------------------------------------------
 // Pantry and synonyms
@@ -251,7 +254,7 @@ const PANTRY = new Set(
     "granulated sugar", "powdered sugar", "flour", "all-purpose flour", "vinegar", "white vinegar", "apple cider vinegar",
     "red wine vinegar", "rice vinegar", "balsamic vinegar", "baking soda", "baking powder", "cornstarch", "vanilla",
     "vanilla extract", "kosher salt", "sea salt", "black pepper", "white pepper", "ground black pepper", "garlic salt",
-    "lime juice", "lemon juice", "lime", "lemon", "corn starch", "cornflour", "bi carb", "bicarbonate of soda",
+    "lime juice", "lemon juice", "corn starch", "cornflour", "bi carb", "bicarbonate of soda",
     "cooking oil", "neutral oil", "stock", "broth", "bouillon",
   ].map((p) => words(p).join(" "))
 )
@@ -276,8 +279,8 @@ const SYNONYMS: Record<string, string[]> = {
   "rotisserie chicken": ["chicken breast"],
   "chicken thigh": ["chicken breast"],
   turkey: ["chicken breast"],
-  "ground beef": ["beef burger", "bolognese"],
-  beef: ["beef burger", "bolognese"],
+  "ground beef": ["taco beef", "beef burger", "bolognese"],
+  beef: ["taco beef", "beef burger", "bolognese"],
   steak: ["beef burger", "bolognese"],
   "ground turkey": ["beef burger", "bolognese"],
   "beef mince": ["beef burger", "bolognese"],
@@ -306,8 +309,31 @@ const SYNONYMS: Record<string, string[]> = {
   "mexican cheese": ["cheese"],
   "cheese blend": ["cheese"],
   feta: ["cheese"],
-  tortilla: ["flour tortilla"],
-  "corn tortilla": ["flour tortilla"],
+  tortilla: ["flour tortilla", "whole wheat tortilla"],
+  "corn tortilla": ["flour tortilla", "taco shell"],
+  "taco shell": ["taco shell"],
+  "hard taco shell": ["taco shell"],
+  "tortilla chip": ["tortilla chip"],
+  // Burger and taco toppings.
+  pickle: ["pickle chip"],
+  "dill pickle": ["pickle chip"],
+  jalapeno: ["jalapeno"],
+  onion: ["red onion", "yellow onion", "onion"],
+  "red onion": ["red onion", "onion"],
+  "white onion": ["yellow onion", "red onion", "onion"],
+  "yellow onion": ["yellow onion", "onion"],
+  tomato: ["tomato"],
+  "roma tomato": ["tomato"],
+  "bbq sauce": ["barbecue sauce"],
+  "barbecue sauce": ["barbecue sauce"],
+  ketchup: ["ketchup"],
+  mustard: ["mustard"],
+  "dijon mustard": ["mustard"],
+  "hamburger bun": ["hamburger bun", "bun"],
+  "burger bun": ["hamburger bun", "bun"],
+  bun: ["hamburger bun", "bun"],
+  "hot sauce": ["hot sauce"],
+  queso: ["queso"],
   "greek yogurt": ["yogurt"],
   yogurt: ["yogurt"],
   berry: ["frozen berry", "berry"],
@@ -354,6 +380,21 @@ const SYNONYM_KEYS = Object.keys(SYNONYMS)
   .map((k) => ({ key: words(k), targets: SYNONYMS[k].map(words) }))
   .sort((a, b) => b.key.length - a.key.length)
 
+// Cheeses are interchangeable: any cheese ingredient can use any plain cheese
+// item (shredded, sliced, crumbled), but not a cheese dish like Grilled Cheese.
+const CHEESE_WORDS =
+  /\b(?:cheese|cheddar|mozzarella|parmesan|parmigiano|pecorino|romano|feta|swiss|provolone|monterey|jack|colby|gouda|brie|queso|cotija|asiago|gruyere|havarti|muenster|chihuahua|manchego|fontina|oaxaca)\b/
+const NOT_PLAIN_CHEESE =
+  /\b(?:grilled|macaroni|mac|pizza|tortellini|blintz|cream|cheesy|bites|sauce|frosting|cake|cupcake|cottage|ricotta|elevated|empanada|frittata|soup|lasagna|parmesan roasted|queso|blanco|dip)\b/
+const isCheeseIngredient = (cleaned: string) => {
+  const s = cleaned.toLowerCase()
+  return CHEESE_WORDS.test(s) && !/\b(?:cream cheese|cottage|ricotta|mascarpone)\b/.test(s)
+}
+const isPlainCheese = (item: MenuItem) => {
+  const s = plain(item.name).toLowerCase()
+  return CHEESE_WORDS.test(s) && !NOT_PLAIN_CHEESE.test(s)
+}
+
 // Two-word foods that must match as a whole, so "cream" can't match "Ice Cream"
 // and "butter" can't match "Peanut Butter".
 const COMPOUNDS = [
@@ -397,6 +438,12 @@ function scoreItem(ingWords: string[], item: MenuItem): Omit<Candidate, "index" 
   // Matched: every word of the ingredient is in the item's name.
   if (ingWords.every((w) => itemWords.includes(w))) return { score: 2 + itemFit, status: "matched" }
 
+  // Any plain cheese for a cheese ("mozzarella" -> Shredded Cheddar Cheese, Crumbled Feta).
+  if (isCheeseIngredient(ingWords.join(" ")) && isPlainCheese(item)) {
+    const ingCoverage = ingWords.filter((w) => itemWords.includes(w)).length / ingWords.length
+    return { score: 0.9 + ingCoverage / 20 + itemFit / 40, status: "swapped" }
+  }
+
   // Synonym: a known stand-in. Covering the whole ingredient beats a shared main word.
   for (const { key, targets } of synonyms) {
     if (!targets.some((t) => hasPhrase(itemWords, t))) continue
@@ -422,8 +469,19 @@ export function isSauceIngredient(ingredient: string) {
   return isSauce({ name: cleanIngredient(ingredient), food_group: null })
 }
 
-export function matchIngredients(ingredients: string[], safeItems: MenuItem[]): DupeIngredient[] {
+export function matchIngredients(ingredients: string[], safeItems: MenuItem[], recipeName?: string | null): DupeIngredient[] {
   const cleaned = ingredients.map(cleanIngredient)
+  // The recipe's name and other ingredients break ties between swaps, so
+  // "ground beef" picks the burger patty in a burger and taco beef in tacos.
+  const HINTS: Record<string, string> = {
+    bun: "burger", slider: "burger", tortilla: "taco", shell: "taco", nacho: "taco",
+    mexican: "chihuahua", jack: "chihuahua", monterey: "chihuahua", quesadilla: "chihuahua",
+  }
+  const context = new Set(
+    [recipeName ?? "", ...cleaned]
+      .flatMap((t) => words(t))
+      .flatMap((w) => [w, ...(w.endsWith("burger") ? ["burger"] : []), ...(HINTS[w] ? [HINTS[w]] : [])])
+  )
   const sauceIngredient = cleaned.map((text) => isSauce({ name: text, food_group: null }))
   const results: DupeIngredient[] = ingredients.map((ingredient, i) => ({
     ingredient,
@@ -441,7 +499,15 @@ export function matchIngredients(ingredients: string[], safeItems: MenuItem[]): 
       // A sauce item can only stand in for a sauce ingredient.
       if (isSauce(item) && !sauceIngredient[index]) continue
       const s = scoreItem(ingWords, item)
-      if (s) candidates.push({ index, item, ...s })
+      if (!s) continue
+      // Shared prep words from the line ("shredded lettuce" -> Shredded Iceberg Lettuce).
+      const raw = new Set(words(ingredients[index]))
+      s.score += Math.min(words(item.name).filter((w) => raw.has(w) && !ingWords.includes(w)).length, 2) * 0.02
+      if (s.status === "swapped") {
+        const shared = words(item.name).filter((w) => context.has(w) && !ingWords.includes(w)).length
+        s.score += Math.min(shared, 2) * 0.03
+      }
+      candidates.push({ index, item, ...s })
     }
   })
   candidates.sort((a, b) => b.score - a.score || a.item.name.length - b.item.name.length)
