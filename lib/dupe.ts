@@ -112,7 +112,7 @@ const decode = (s: string) =>
     .replace(/\s+/g, " ")
     .trim()
 
-export type FetchedRecipe = {
+type FetchedRecipe = {
   name: string | null
   recipeIngredient: string[]
   /** schema.org NutritionInformation values as written on the page, e.g. { calories: "450 kcal" }. */
@@ -120,7 +120,7 @@ export type FetchedRecipe = {
 }
 
 /** The first schema.org Recipe with ingredients in a page's application/ld+json scripts. */
-export function findLdRecipe(html: string): FetchedRecipe | null {
+function findLdRecipe(html: string): FetchedRecipe | null {
   const scripts = html.matchAll(/<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)
   const isRecipe = (node: Record<string, unknown>) =>
     [node["@type"]].flat().some((t) => typeof t === "string" && t.toLowerCase() === "recipe")
@@ -216,7 +216,7 @@ function cleanPart(part: string) {
  * Of alternatives ("800g / 28 oz crushed tomato", "cornflour / corn starch"),
  * keeps the first one that still names a food.
  */
-export function cleanIngredient(text: string): string {
+function cleanIngredient(text: string): string {
   let s = text.toLowerCase()
   s = s.replace(/\([^)]*\)/g, " ") // (8 oz), (optional)
   s = s.replace(/[¼½¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚]/g, " ")
