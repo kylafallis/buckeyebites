@@ -10,34 +10,67 @@ const COLUMNS = `
   locations!inner(slug, is_live)
 `
 
+const SAMPLE_LIMIT = 60
+
 /**
- * Scott menu items for one meal that are safe for this user: no overlap with
+ * Live menu items for one meal that are safe for this user: no overlap with
  * their allergens and a fit for their diet. When the user has any allergy,
  * items with no allergen or diet info are dropped too, since that usually
  * means the data is missing rather than the item being allergen-free.
  *
- * Every page and route that lists menu items must go through this function.
- * Pass `forPlate` when building or suggesting plates to also drop items that
- * fail isPlateItem. Throws if the user's allergens can't be read, so callers
- * fail closed.
+ * Every page and route that lists menu items must go through this function
+ * (or getSafeSampleItems, which uses the same filter). Pass `forPlate` when
+ * building or suggesting plates to also drop items that fail isPlateItem.
+ * `location` is a location slug (default Scott). Throws if the user's
+ * allergens can't be read, so callers fail closed.
  */
 export async function getSafeItems(
   userId: string,
   mealPeriod: MealPeriod,
   date: string,
-  { forPlate = false }: { forPlate?: boolean } = {}
+  { forPlate = false, location = SCOTT_SLUG }: { forPlate?: boolean; location?: string } = {}
 ): Promise<MenuItem[]> {
   const supabase = await createClient()
+  const rows = supabase
+    .from("menu_items")
+    .select(COLUMNS)
+    .eq("locations.slug", location)
+    .eq("locations.is_live", true)
+    .eq("meal_period", mealPeriod)
+    .eq("served_on", date)
+    .order("name")
+  return filterSafe(userId, rows, { forPlate })
+}
 
+/**
+ * Sample items for a location that isn't live yet (any date or meal, one row
+ * per food), with the same safety filter as getSafeItems.
+ */
+export async function getSafeSampleItems(userId: string, location: string): Promise<MenuItem[]> {
+  const supabase = await createClient()
+  const rows = supabase
+    .from("menu_items")
+    .select(COLUMNS)
+    .eq("locations.slug", location)
+    .order("name")
+    .limit(SAMPLE_LIMIT * 4)
+  const items = await filterSafe(userId, rows, { forPlate: false })
+  const seen = new Set<string>()
+  return items.filter((i) => !seen.has(i.name) && seen.add(i.name)).slice(0, SAMPLE_LIMIT)
+}
+
+/**
+ * The allergen and diet filter shared by getSafeItems and getSafeSampleItems.
+ * Takes the items query unawaited so it runs alongside the user lookups.
+ */
+async function filterSafe(
+  userId: string,
+  itemsQuery: PromiseLike<{ data: unknown; error: Error | null }>,
+  { forPlate }: { forPlate: boolean }
+): Promise<MenuItem[]> {
+  const supabase = await createClient()
   const [items, profile, allergens] = await Promise.all([
-    supabase
-      .from("menu_items")
-      .select(COLUMNS)
-      .eq("locations.slug", SCOTT_SLUG)
-      .eq("locations.is_live", true)
-      .eq("meal_period", mealPeriod)
-      .eq("served_on", date)
-      .order("name"),
+    itemsQuery,
     supabase.from("profiles").select("diet").eq("id", userId).maybeSingle(),
     supabase.from("user_allergens").select("allergen").eq("user_id", userId),
   ])

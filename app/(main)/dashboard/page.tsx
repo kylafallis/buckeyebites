@@ -5,14 +5,14 @@ import { redirect } from "next/navigation"
 import { CheckCircleIcon, CircleIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems } from "@/lib/menu.server"
-import { columbusDayHour, currentMealPeriod, NUTRIENT_TAGS, SCOTT_SLUG, todayInColumbus } from "@/lib/menu-shared"
+import { currentMealPeriod, NUTRIENT_TAGS, todayInColumbus } from "@/lib/menu-shared"
 import { safeCuratedPlates, type CuratedPlate } from "@/lib/plate"
 import { labelFor, NUTRIENTS } from "@/lib/preferences"
 import { ProgressRing } from "@/components/progress-ring"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageContainer } from "@/components/page-container"
-import { FeedMeButton } from "./feed-me-button"
+import { FeedMeButton } from "@/components/feed-me-button"
 
 export const metadata: Metadata = {
   title: "Dashboard · BuckeyeBites",
@@ -50,9 +50,8 @@ async function Dashboard() {
   const now = new Date()
   const today = todayInColumbus(now)
   const meal = currentMealPeriod(now)
-  const { dow, hour } = columbusDayHour(now)
 
-  const [profile, logs, traffic, plates] = await Promise.all([
+  const [profile, logs, plates] = await Promise.all([
     supabase.from("profiles").select("display_name, mode, focus_nutrients, goals").eq("id", userId).maybeSingle(),
     supabase
       .from("meal_logs")
@@ -60,13 +59,6 @@ async function Dashboard() {
       .eq("user_id", userId)
       .eq("eaten_on", today)
       .order("created_at"),
-    supabase
-      .from("traffic_estimates")
-      .select("busy_pct, locations!inner(slug)")
-      .eq("locations.slug", SCOTT_SLUG)
-      .eq("dow", dow)
-      .eq("hour", hour)
-      .maybeSingle(),
     getSafeItems(userId, meal, today, { forPlate: true })
       .then((items) => safeCuratedPlates(supabase, items, meal))
       .catch((error): CuratedPlate[] => {
@@ -91,7 +83,6 @@ async function Dashboard() {
         <p className="text-sm text-muted-foreground">
           {now.toLocaleDateString("en-US", { timeZone: TIME_ZONE, weekday: "long", month: "long", day: "numeric" })}
         </p>
-        {traffic.data?.busy_pct != null && <TrafficPill busyPct={traffic.data.busy_pct} />}
       </header>
 
       {/* Phones: one column. md+: Feed me and progress left, today's meals right. */}
@@ -179,22 +170,6 @@ function Section({ title, className = "", children }: { title: string; className
       <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
       {children}
     </section>
-  )
-}
-
-function TrafficPill({ busyPct }: { busyPct: number }) {
-  const [label, colors] =
-    busyPct < 40
-      ? ["Quiet", "bg-[#4C9A5A]/15 text-[#2F6B3B] [&>i]:bg-[#4C9A5A]"]
-      : busyPct <= 70
-        ? ["Moderate", "bg-[#E8B931]/20 text-[#7A5B00] [&>i]:bg-[#E8B931]"]
-        : ["Busy", "bg-[#BB0000]/10 text-[#BB0000] [&>i]:bg-[#BB0000]"]
-  return (
-    <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${colors}`}>
-      <i className="size-2 rounded-full" aria-hidden />
-      Scott right now: {label}
-      <span className="font-normal opacity-75">· Estimated</span>
-    </p>
   )
 }
 

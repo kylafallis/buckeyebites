@@ -63,20 +63,11 @@ function columbusParts(now: Date) {
     hourCycle: "h23",
   }).formatToParts(now)
   const get = (type: string) => parts.find((p) => p.type === type)!.value
-  const date = `${get("year")}-${get("month")}-${get("day")}`
-  // Day of week for that calendar date, 0 = Sunday.
-  const dow = new Date(`${date}T12:00:00Z`).getUTCDay()
-  return { date, dow, hour: +get("hour"), minute: +get("minute") }
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: +get("hour"), minute: +get("minute") }
 }
 
 export function todayInColumbus(now = new Date()) {
   return columbusParts(now).date
-}
-
-/** Day of week (0 = Sunday) and hour (0-23) in Columbus. */
-export function columbusDayHour(now = new Date()) {
-  const { dow, hour } = columbusParts(now)
-  return { dow, hour }
 }
 
 export function currentMealPeriod(now = new Date()): MealPeriod {
