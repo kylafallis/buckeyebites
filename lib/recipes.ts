@@ -19,7 +19,7 @@ const RECIPE_NUTRIENT_TAGS: Record<string, string> = { iron: "high_iron", "vitam
 const isMealPeriod = (v: unknown): v is MealPeriod => MEAL_PERIODS.includes(v as MealPeriod)
 
 function toCard(
-  recipe: { id: number; title: string | null; source: "curated" | "ai"; tags: string[] },
+  recipe: { id: number; title: string | null; source: RecipeCard["source"]; tags: string[] },
   items: MenuItem[],
   meals: MealPeriod[]
 ): RecipeCard {
@@ -34,7 +34,7 @@ function toCard(
     source: recipe.source,
     meals,
     items: items.map((i) => ({ name: i.name, station: i.station?.name ?? null })),
-    diets: RECIPE_DIETS.filter((d) => items.every((i) => fitsDiet(i.diet_tags, [d]))),
+    diets: RECIPE_DIETS.filter((d) => items.every((i) => fitsDiet(i, [d]))),
     nutrientTags: NUTRIENT_TAGS.map((n) => n.tag).filter((t) => nutrientTags.has(t)),
     photos: platePhotos(items),
   }
@@ -51,8 +51,9 @@ export async function recipeBook(supabase: SupabaseClient, userId: string): Prom
     Promise.all(MEAL_PERIODS.map((meal) => getSafeItems(userId, meal, today, { forPlate: true }))),
     supabase
       .from("recipes")
-      .select("id, title, tags, recipe_items(menu_item_id, menu_items(meal_period, served_on))")
-      .eq("source", "ai")
+      .select("id, title, source, tags, recipe_items(menu_item_id, menu_items(meal_period, served_on))")
+      // Their own plates: recipe-link dupes (and older AI plates).
+      .in("source", ["ai", "dupe"])
       .eq("created_by", userId)
       .order("created_at", { ascending: false }),
   ])
@@ -75,6 +76,7 @@ export async function recipeBook(supabase: SupabaseClient, userId: string): Prom
   type AiRow = {
     id: number
     title: string | null
+    source: "ai" | "dupe"
     tags: string[] | null
     recipe_items: { menu_item_id: number; menu_items: { meal_period: string | null; served_on: string | null } | null }[]
   }
@@ -105,7 +107,7 @@ export async function recipeBook(supabase: SupabaseClient, userId: string): Prom
     const items = row.recipe_items.map((ri) => safeById.get(ri.menu_item_id))
     if (items.length === 0 || items.some((i) => !i)) continue
     const tags = row.tags ?? []
-    cards.push(toCard({ id: row.id, title: row.title, source: "ai", tags }, items as MenuItem[], tags.filter(isMealPeriod)))
+    cards.push(toCard({ id: row.id, title: row.title, source: row.source, tags }, items as MenuItem[], tags.filter(isMealPeriod)))
   }
   return cards
 }

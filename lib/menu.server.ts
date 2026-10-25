@@ -99,6 +99,6 @@ async function filterSafe(
       if (userAllergens.size > 0 && item.allergens.length === 0 && item.diet_tags.length === 0) {
         return false
       }
-      return fitsDiet(item.diet_tags, diets)
+      return fitsDiet(item, diets)
     })
 }

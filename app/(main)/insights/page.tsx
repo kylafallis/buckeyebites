@@ -6,7 +6,7 @@ import { MEAL_PERIODS, type MealPeriod } from "@/lib/menu-shared"
 import { INSIGHT_STATS, INSIGHT_STATS_SOURCE } from "@/lib/insights-stats"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { StationDemandChart, TopLikedChart, type LikedRow, type StationRow } from "./insights-charts"
+import { MealTotalsChart, TopLikedChart, type LikedRow } from "./insights-charts"
 
 export const metadata: Metadata = {
   title: "Insights · BuckeyeBites",
@@ -16,8 +16,7 @@ const MEAL_LABELS: Record<MealPeriod, string> = { breakfast: "Breakfast", lunch:
 const isMeal = (v: unknown): v is MealPeriod => MEAL_PERIODS.includes(v as MealPeriod)
 const servings = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
-type PlannedRow = { name: string; station: string | null; meal_period: string | null; planned_servings: number }
-type DemandRow = { station: string | null; meal_period: string | null; planned_servings: number }
+type PlannedRow = { name: string; meal_period: string | null; planned_servings: number }
 
 async function Insights() {
   // Any signed-in user can view this for the demo; the views only expose totals.
@@ -25,12 +24,12 @@ async function Insights() {
   const { data: claims } = await supabase.auth.getClaims()
   if (!claims?.claims?.sub) redirect("/login")
 
-  const [liked, planned, demand] = await Promise.all([
+  // Views from supabase/migrations/006_insights.sql.
+  const [liked, planned] = await Promise.all([
     supabase.from("insight_top_liked").select("name, likes, dislikes, like_rate"),
-    supabase.from("insight_planned_tomorrow").select("name, station, meal_period, planned_servings"),
-    supabase.from("insight_station_demand").select("station, meal_period, planned_servings"),
+    supabase.from("insight_planned_tomorrow").select("name, meal_period, planned_servings"),
   ])
-  for (const r of [liked, planned, demand]) if (r.error) console.error("Insights query failed:", r.error.message)
+  for (const r of [liked, planned]) if (r.error) console.error("Insights query failed:", r.error.message)
 
   const topLiked = ((liked.data ?? []) as LikedRow[])
     .map((r) => ({ ...r, likes: Number(r.likes), dislikes: Number(r.dislikes), like_rate: r.like_rate == null ? null : Number(r.like_rate) }))
@@ -43,20 +42,11 @@ async function Insights() {
     .map((r) => ({ ...r, planned_servings: Number(r.planned_servings) }))
     .sort((a, b) => mealRank(a.meal_period) - mealRank(b.meal_period) || b.planned_servings - a.planned_servings || a.name.localeCompare(b.name))
 
-  // Pivot station demand to one row per station, one value per meal.
-  const byStation = new Map<string, StationRow>()
-  const meals = new Set<MealPeriod>()
-  for (const r of (demand.data ?? []) as DemandRow[]) {
-    if (!isMeal(r.meal_period)) continue
-    const station = r.station ?? "Other"
-    const row = byStation.get(station) ?? { station }
-    row[r.meal_period] = (row[r.meal_period] ?? 0) + Number(r.planned_servings)
-    byStation.set(station, row)
-    meals.add(r.meal_period)
-  }
-  const mealList = MEAL_PERIODS.filter((m) => meals.has(m))
-  const total = (r: StationRow) => mealList.reduce((s, m) => s + (r[m] ?? 0), 0)
-  const stationRows = [...byStation.values()].sort((a, b) => total(b) - total(a))
+  // Total planned servings per meal, for the chart.
+  const mealTotals = MEAL_PERIODS.map((meal) => ({
+    meal,
+    servings: tomorrow.filter((r) => r.meal_period === meal).reduce((sum, r) => sum + r.planned_servings, 0),
+  })).filter((m) => m.servings > 0)
 
   const empty = (text: string) => <p className="py-8 text-center text-sm text-muted-foreground">{text}</p>
 
@@ -86,16 +76,14 @@ async function Insights() {
                 <thead className="sticky top-0 bg-card text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="py-1.5 pr-2 font-medium">Food</th>
-                    <th className="py-1.5 pr-2 font-medium">Station</th>
                     <th className="py-1.5 pr-2 font-medium">Meal</th>
                     <th className="py-1.5 text-right font-medium">Servings</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {tomorrow.map((r, i) => (
-                    <tr key={`${r.name}-${r.station}-${r.meal_period}-${i}`}>
+                    <tr key={`${r.name}-${r.meal_period}-${i}`}>
                       <td className="py-1.5 pr-2">{r.name}</td>
-                      <td className="py-1.5 pr-2 text-muted-foreground">{r.station ?? "—"}</td>
                       <td className="py-1.5 pr-2 text-muted-foreground">{isMeal(r.meal_period) ? MEAL_LABELS[r.meal_period] : "—"}</td>
                       <td className="py-1.5 text-right tabular-nums">{servings(r.planned_servings)}</td>
                     </tr>
@@ -109,38 +97,26 @@ async function Insights() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Planned servings by station</CardTitle>
-          <p className="text-xs text-muted-foreground">Tomorrow, split by meal</p>
+          <CardTitle>Planned servings by meal</CardTitle>
+          <p className="text-xs text-muted-foreground">Tomorrow, all foods combined</p>
         </CardHeader>
         <CardContent>
-          {stationRows.length === 0 ? (
-            empty("No station demand yet.")
+          {mealTotals.length === 0 ? (
+            empty("No meals planned for tomorrow yet.")
           ) : (
             <>
-              <StationDemandChart rows={stationRows} meals={mealList} />
-              <details className="mt-3 text-sm">
-                <summary className="cursor-pointer text-xs font-medium text-primary">View as table</summary>
-                <table className="mt-2 w-full text-sm">
-                  <thead className="text-left text-xs text-muted-foreground">
-                    <tr>
-                      <th className="py-1.5 pr-2 font-medium">Station</th>
-                      {mealList.map((m) => (
-                        <th key={m} className="py-1.5 pr-2 text-right font-medium">{MEAL_LABELS[m]}</th>
-                      ))}
+              <MealTotalsChart rows={mealTotals} />
+              <table className="mt-3 w-full text-sm">
+                <caption className="sr-only">Planned servings by meal</caption>
+                <tbody className="divide-y">
+                  {mealTotals.map((m) => (
+                    <tr key={m.meal}>
+                      <td className="py-1.5 pr-2">{MEAL_LABELS[m.meal]}</td>
+                      <td className="py-1.5 text-right tabular-nums">{servings(m.servings)}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {stationRows.map((r) => (
-                      <tr key={r.station}>
-                        <td className="py-1.5 pr-2">{r.station}</td>
-                        {mealList.map((m) => (
-                          <td key={m} className="py-1.5 pr-2 text-right tabular-nums">{servings(r[m] ?? 0)}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
+                  ))}
+                </tbody>
+              </table>
             </>
           )}
         </CardContent>
