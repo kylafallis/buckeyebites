@@ -102,7 +102,7 @@ export function RecipeBook({
                       {card.title}
                     </Link>
                     <p className="text-xs text-muted-foreground capitalize">
-                      {card.source === "ai" ? "Your AI plate" : card.meals.join(" · ")}
+                      {card.source === "dupe" ? "From your recipe link" : card.source === "ai" ? "Your AI plate" : card.meals.join(" · ")}
                     </p>
                   </div>
                   <button

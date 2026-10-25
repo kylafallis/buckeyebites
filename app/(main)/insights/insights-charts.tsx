@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import type { MealPeriod } from "@/lib/menu-shared"
 
 // Single series: the brand red (3:1+ on white). Meals: the first three slots of
@@ -72,54 +72,30 @@ export function TopLikedChart({ rows }: { rows: LikedRow[] }) {
   )
 }
 
-export type StationRow = { station: string } & Partial<Record<MealPeriod, number>>
-
-/** Grouped horizontal bars: planned servings per station, one bar per meal. */
-export function StationDemandChart({ rows, meals }: { rows: StationRow[]; meals: MealPeriod[] }) {
-  const height = rows.length * (meals.length * 18 + 18) + 24
+/** Vertical bars: total planned servings for breakfast, lunch and dinner. */
+export function MealTotalsChart({ rows }: { rows: { meal: MealPeriod; servings: number }[] }) {
+  const data = rows.map((r) => ({ ...r, label: MEAL_LABELS[r.meal], fill: MEAL_COLORS[r.meal] }))
   return (
-    <>
-      <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Legend">
-        {meals.map((m) => (
-          <li key={m} className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-sm" style={{ background: MEAL_COLORS[m] }} aria-hidden />
-            {MEAL_LABELS[m]}
-          </li>
-        ))}
-      </ul>
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 36, bottom: 4, left: 0 }} barGap={2} barCategoryGap={10}>
-          <CartesianGrid horizontal={false} stroke="var(--border)" />
-          <XAxis type="number" domain={[0, "dataMax"]} allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-          <YAxis
-            type="category"
-            dataKey="station"
-            width={130}
-            tick={AXIS_TICK}
-            tickFormatter={(v: string) => truncate(v, 18)}
-            axisLine={false}
-            tickLine={false}
-          />
-          <Tooltip
-            cursor={{ fill: "var(--muted)" }}
-            content={({ active, payload }) => {
-              const row = active ? (payload?.[0]?.payload as StationRow | undefined) : undefined
-              if (!row) return null
-              return (
-                <TooltipBox
-                  title={row.station}
-                  rows={meals.map((m) => ({ label: MEAL_LABELS[m], value: String(row[m] ?? 0), color: MEAL_COLORS[m] }))}
-                />
-              )
-            }}
-          />
-          {meals.map((m) => (
-            <Bar key={m} dataKey={m} name={MEAL_LABELS[m]} fill={MEAL_COLORS[m]} maxBarSize={16} radius={[0, 4, 4, 0]} isAnimationActive={false}>
-              <LabelList dataKey={m} position="right" fill="var(--foreground)" fontSize={10} />
-            </Bar>
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 20, right: 8, bottom: 4, left: 0 }} barCategoryGap="30%">
+        <CartesianGrid vertical={false} stroke="var(--border)" />
+        <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={32} />
+        <Tooltip
+          cursor={{ fill: "var(--muted)" }}
+          content={({ active, payload }) => {
+            const row = active ? (payload?.[0]?.payload as (typeof data)[number] | undefined) : undefined
+            if (!row) return null
+            return <TooltipBox title={row.label} rows={[{ label: "Planned servings", value: String(row.servings), color: row.fill }]} />
+          }}
+        />
+        <Bar dataKey="servings" maxBarSize={56} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+          {data.map((d) => (
+            <Cell key={d.meal} fill={d.fill} />
           ))}
-        </BarChart>
-      </ResponsiveContainer>
-    </>
+          <LabelList dataKey="servings" position="top" fill="var(--foreground)" fontSize={11} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   )
 }

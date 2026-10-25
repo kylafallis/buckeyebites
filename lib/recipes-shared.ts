@@ -8,7 +8,7 @@ export type RecipeDiet = (typeof RECIPE_DIETS)[number]
 export type RecipeCard = {
   id: number
   title: string
-  source: "curated" | "ai"
+  source: "curated" | "ai" | "dupe"
   meals: MealPeriod[]
   items: { name: string; station: string | null }[]
   /** Diets every item on the plate fits. */

@@ -38,14 +38,26 @@ export function isPlateItem(item: Pick<MenuItem, "food_group" | "calories">) {
   return item.food_group !== "condiment" && item.calories != null
 }
 
-function fitsOneDiet(tags: string[], diet: string) {
+// Land meat in a name. Used for pescatarian, since the menu has no
+// "pescatarian" tag: fish dishes are tagged with the Fish allergen instead.
+const LAND_MEAT =
+  /\b(?:chicken|turkey|beef|pork|bacon|ham|sausage|chorizo|carnitas|birria|churrasco|pepperoni|hot dog|meatballs?|lamb|veal|steak|burger|brisket)\b/i
+
+type DietFood = { diet_tags: string[]; allergens?: string[]; name?: string }
+
+function fitsOneDiet({ diet_tags: tags, allergens = [], name = "" }: DietFood, diet: string) {
   switch (diet) {
     case "vegan":
       return tags.includes("vegan")
     case "vegetarian":
       return tags.includes("vegetarian")
-    case "pescatarian":
-      return ["pescatarian", "vegetarian", "vegan"].some((t) => tags.includes(t))
+    case "pescatarian": {
+      if (["pescatarian", "vegetarian", "vegan"].some((t) => tags.includes(t))) return true
+      // Fish or shellfish with no land meat in the name, e.g. "Cajun White Fish"
+      // but not "Beef Stroganoff" (fish sauce in the gravy).
+      const seafood = allergens.includes("fish") || allergens.includes("shellfish")
+      return seafood && !LAND_MEAT.test(name) && !/plant[- ]based/i.test(name)
+    }
     case "halal_friendly":
       return tags.includes("halal") || tags.includes("vegetarian")
     case "gluten_free":
@@ -55,9 +67,9 @@ function fitsOneDiet(tags: string[], diet: string) {
   }
 }
 
-/** Whether an item's diet_tags fit every one of the user's diets. */
-export function fitsDiet(tags: string[], diets: readonly string[]) {
-  return diets.every((d) => fitsOneDiet(tags, d))
+/** Whether a food fits every one of the user's diets. */
+export function fitsDiet(food: DietFood, diets: readonly string[]) {
+  return diets.every((d) => fitsOneDiet(food, d))
 }
 
 /**
