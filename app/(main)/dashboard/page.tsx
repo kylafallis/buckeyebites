@@ -157,6 +157,9 @@ async function Dashboard() {
             ))}
           </div>
         )}
+        <Link href="/recipes" className={buttonVariants({ variant: "link", className: "mt-1 h-9 px-0 text-sm" })}>
+          Recipe book →
+        </Link>
       </Section>
 
       <form action="/auth/signout" method="post" className="mt-8 flex justify-center">

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSafeItems } from "@/lib/menu.server"
 import {
   currentMealPeriod,
+  formatDay,
   MEAL_PERIODS,
   NUTRIENT_TAGS,
   todayInColumbus,
@@ -24,6 +25,7 @@ export class PlateError extends Error {
 export type CuratedPlate = {
   id: number
   title: string | null
+  tags: string[]
   parts: { item: MenuItem; servings: number }[]
 }
 
@@ -71,7 +73,7 @@ export async function safeCuratedPlates(
       servings: ri.servings ?? 1,
     }))
     if (parts.some((p) => !p.item)) continue
-    plates.push({ id: recipe.id, title: recipe.title, parts: parts as CuratedPlate["parts"] })
+    plates.push({ id: recipe.id, title: recipe.title, tags: recipe.tags ?? [], parts: parts as CuratedPlate["parts"] })
   }
   return plates
 }
@@ -144,24 +146,37 @@ function weightedPick<T>(options: { value: T; score: number }[]): T {
   return options[options.length - 1].value
 }
 
+/** Ready-made plates that are safe for this user at one meal on one day's menu. */
+export async function safePlatesForSlot(
+  supabase: SupabaseClient,
+  userId: string,
+  date: string,
+  meal: MealPeriod
+): Promise<CuratedPlate[]> {
+  return safeCuratedPlates(supabase, await getSafeItems(userId, meal, date, { forPlate: true }), meal)
+}
+
 /**
- * Feed me: a random ready-made plate that is safe for this user right now.
+ * Feed me: a random ready-made plate that is safe for this user. Defaults to
+ * the current meal on today's menu; `slot` picks for another date and meal.
  * `exclude` is the plate they're looking at, so Try again shows a different one.
  */
 export async function pickPlate(
   supabase: SupabaseClient,
   userId: string,
-  exclude?: number
+  exclude?: number,
+  slot?: { date?: string; meal?: MealPeriod }
 ): Promise<{ recipeId: number; source: "curated" }> {
-  const meal = currentMealPeriod()
-  const [items, prefs] = await Promise.all([
-    getSafeItems(userId, meal, todayInColumbus(), { forPlate: true }),
+  const date = slot?.date ?? todayInColumbus()
+  const meal = slot?.meal ?? currentMealPeriod()
+  const [plates, prefs] = await Promise.all([
+    safePlatesForSlot(supabase, userId, date, meal),
     loadPreferences(supabase, userId),
   ])
-  const plates = await safeCuratedPlates(supabase, items, meal)
 
   if (plates.length === 0) {
-    throw new PlateError(`No ready-made ${meal} plate fits your diet and allergies on today's menu yet.`, 422)
+    const day = date === todayInColumbus() ? "today's menu" : `the menu for ${formatDay(date)}`
+    throw new PlateError(`No ready-made ${meal} plate fits your diet and allergies on ${day} yet.`, 422)
   }
 
   const choices = plates.length > 1 ? plates.filter((p) => p.id !== exclude) : plates

@@ -1,11 +1,19 @@
-/** Client helper: asks /api/plate for a plate (not `exclude`) and returns its recipe id. */
-export async function requestPlate(exclude?: number): Promise<number> {
+import type { MealPeriod } from "@/lib/menu-shared"
+
+/**
+ * Client helper: asks /api/plate for a plate (not `exclude`) and returns its
+ * recipe id. Defaults to the current meal today; pass `slot` for another day or meal.
+ */
+export async function requestPlate(exclude?: number, slot?: { date: string; meal: MealPeriod }): Promise<number> {
   let res: Response
   try {
     res = await fetch("/api/plate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(exclude != null ? { exclude } : {}),
+      body: JSON.stringify({
+        ...(exclude != null ? { exclude } : {}),
+        ...(slot ? { date: slot.date, meal_period: slot.meal } : {}),
+      }),
     })
   } catch {
     throw new Error("You're offline. Check your connection and try again.")
