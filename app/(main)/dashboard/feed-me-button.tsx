@@ -28,14 +28,14 @@ export function FeedMeButton() {
         {pending ? (
           <>
             <CircleNotchIcon className="size-5 animate-spin" />
-            Building your plate...
+            Finding your plate...
           </>
         ) : (
           "Feed me"
         )}
       </Button>
       <p className="sr-only" aria-live="polite">
-        {pending ? "Building your plate" : ""}
+        {pending ? "Finding your plate" : ""}
       </p>
       {error && (
         <p className="text-sm text-destructive" role="alert">

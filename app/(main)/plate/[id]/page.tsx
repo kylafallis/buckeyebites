@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation"
 import { WarningIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems } from "@/lib/menu.server"
-import { MEAL_PERIODS, todayInColumbus, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
+import { currentMealPeriod, MEAL_PERIODS, todayInColumbus, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
+import { foodKey } from "@/lib/plate"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { computeTotals, TOTAL_FIELDS, totalsForMode } from "@/lib/totals"
 import { PlateActions } from "./plate-actions"
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 type RecipeRow = {
   id: number
   title: string | null
+  source: string | null
   blurb: string | null
   steps: string[] | null
   tags: string[] | null
@@ -40,7 +42,7 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
   const [{ data }, { data: profile }] = await Promise.all([
     supabase
       .from("recipes")
-      .select("id, title, blurb, steps, tags, recipe_items(menu_item_id, servings, menu_items(name, meal_period, served_on))")
+      .select("id, title, source, blurb, steps, tags, recipe_items(menu_item_id, servings, menu_items(name, meal_period, served_on))")
       .eq("id", recipeId)
       .maybeSingle(),
     supabase.from("profiles").select("mode, focus_nutrients").eq("id", userId).maybeSingle(),
@@ -50,7 +52,13 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
 
   // Item details come only from getSafeItems, so anything unsafe for this
   // user (e.g. a plate someone else generated) is flagged, not shown as food.
-  const menus = [
+  // Ready-made plates are matched by food name to today's menu for their meal;
+  // other plates use the exact menu rows they were saved with.
+  const curated = recipe.source === "curated"
+  const curatedMeal = recipe.tags?.find(isMealPeriod) ?? currentMealPeriod()
+  const todaySafe = curated ? await getSafeItems(userId, curatedMeal, todayInColumbus(), { forPlate: true }) : []
+  const todayByName = new Map(todaySafe.map((i) => [foodKey(i.name), i]))
+  const menus = curated ? [] : [
     ...new Set(
       recipe.recipe_items
         .map((ri) => ri.menu_items)
@@ -65,6 +73,12 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
     })
   )
   const safeById = new Map(safeLists.flat().map((i) => [i.id, i]))
+  const resolve = (ri: RecipeRow["recipe_items"][number]) =>
+    curated
+      ? ri.menu_items
+        ? todayByName.get(foodKey(ri.menu_items.name))
+        : undefined
+      : safeById.get(ri.menu_item_id)
 
   const steps = recipe.steps ?? []
   const stationRank = (item: MenuItem) => {
@@ -72,11 +86,11 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
     return i === -1 ? steps.length : i
   }
   const parts = recipe.recipe_items
-    .map((ri) => ({ item: safeById.get(ri.menu_item_id), servings: ri.servings ?? 1, name: ri.menu_items?.name }))
+    .map((ri) => ({ item: resolve(ri), servings: ri.servings ?? 1, name: ri.menu_items?.name }))
     .filter((p): p is { item: MenuItem; servings: number; name: string | undefined } => !!p.item)
     .sort((a, b) => stationRank(a.item) - stationRank(b.item))
   const unsafeNames = recipe.recipe_items
-    .filter((ri) => !safeById.has(ri.menu_item_id))
+    .filter((ri) => !resolve(ri))
     .map((ri) => ri.menu_items?.name ?? "An item")
 
   // Group consecutive items by station to get walking-order stops.
