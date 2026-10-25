@@ -17,6 +17,7 @@ export function PlateActions({
   planDate,
   totals,
   canLog,
+  showLog = true,
   retry = true,
 }: {
   recipeId: number
@@ -25,6 +26,8 @@ export function PlateActions({
   planDate: string
   totals: Totals
   canLog: boolean
+  /** Show "I ate this". Off for a plate planned for a later day. */
+  showLog?: boolean
   /** Show "Another plate" (back to Feed me's plates for this meal). Off for recipe dupes. */
   retry?: boolean
 }) {
@@ -61,17 +64,19 @@ export function PlateActions({
 
   return (
     <div className="mt-6 flex flex-col gap-2">
-      <Button className="h-12 rounded-xl text-base font-bold" onClick={logIt} disabled={!canLog || logged !== "idle"}>
-        {logged === "done" ? (
-          <>
-            <CheckIcon weight="bold" /> Logged. Enjoy!
-          </>
-        ) : logged === "pending" ? (
-          "Logging…"
-        ) : (
-          "I ate this"
-        )}
-      </Button>
+      {showLog && (
+        <Button className="h-12 rounded-xl text-base font-bold" onClick={logIt} disabled={!canLog || logged !== "idle"}>
+          {logged === "done" ? (
+            <>
+              <CheckIcon weight="bold" /> Logged. Enjoy!
+            </>
+          ) : logged === "pending" ? (
+            "Logging…"
+          ) : (
+            "I ate this"
+          )}
+        </Button>
+      )}
       <div className="flex gap-2">
         <Button
           variant="outline"

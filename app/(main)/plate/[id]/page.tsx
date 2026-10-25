@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation"
 import { WarningIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems } from "@/lib/menu.server"
-import { foodKey, MEAL_PERIODS, type MealPeriod, type MenuItem, todayInColumbus } from "@/lib/menu-shared"
+import { foodKey, formatDay, isIsoDate, MEAL_PERIODS, type MealPeriod, type MenuItem, todayInColumbus } from "@/lib/menu-shared"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { computeTotals, TOTAL_FIELDS, totalsForMode } from "@/lib/totals"
 import { BackBar } from "@/components/back-bar"
@@ -37,7 +37,13 @@ const MEAL_LABELS: Record<MealPeriod, string> = { breakfast: "Breakfast", lunch:
 
 async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
   const recipeId = Number((await params).id)
-  const asked = (await searchParams).meal
+  const query = await searchParams
+  const asked = query.meal
+  // ?date= comes from the meal plan: a plate planned for a later day is
+  // checked against that day's menu, not today's.
+  const today = todayInColumbus()
+  const day = isIsoDate(query.date) ? query.date : today
+  const isToday = day === today
   if (!Number.isInteger(recipeId)) notFound()
 
   const supabase = await createClient()
@@ -65,7 +71,7 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
   const mealTags = (recipe.tags ?? []).filter(isMealPeriod)
   const taggedMeal = isMealPeriod(asked) && mealTags.includes(asked) ? asked : mealTags[0]
   const curatedMeal = taggedMeal ?? "lunch"
-  const todaySafe = curated ? await getSafeItems(userId, curatedMeal, todayInColumbus(), { forPlate: true }) : []
+  const todaySafe = curated ? await getSafeItems(userId, curatedMeal, day, { forPlate: true }) : []
   const todayByName = new Map(todaySafe.map((i) => [foodKey(i.name), i]))
   const menus = curated ? [] : [
     ...new Set(
@@ -125,7 +131,8 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
       <section className="relative overflow-hidden rounded-2xl bg-card p-5 shadow-[0_6px_24px_rgba(31,42,35,0.07)]">
         <BiteNotch />
         <p className="text-sm text-muted-foreground">
-          {MEAL_LABELS[meal]} at Scott{curated ? ", picked for you" : ""}
+          {MEAL_LABELS[meal]} at Scott
+          {isToday ? (curated ? ", picked for you" : "") : `, ${formatDay(day, { weekday: "long", month: "short", day: "numeric" })}`}
         </p>
         <h1 className="mt-1 max-w-[85%] text-2xl leading-tight font-extrabold">{recipe.title ?? "Your plate"}</h1>
         {recipe.blurb && <p className="mt-2 text-[0.9375rem] leading-relaxed">{recipe.blurb}</p>}
@@ -141,7 +148,7 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
           <WarningIcon className="mt-0.5 size-4 shrink-0 text-destructive" weight="fill" />
           <p>
             {unsafeNames.join(", ")} {unsafeNames.length === 1 ? "isn't" : "aren't"} safe for you or{" "}
-            {unsafeNames.length === 1 ? "isn't" : "aren't"} on today&apos;s menu, so{" "}
+            {unsafeNames.length === 1 ? "isn't" : "aren't"} on {isToday ? "today's" : `${formatDay(day, { weekday: "long" })}'s`} menu, so{" "}
             {unsafeNames.length === 1 ? "it's" : "they're"} hidden. Pick another plate.
           </p>
         </div>
@@ -198,10 +205,11 @@ async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
         recipeId={recipe.id}
         userId={userId}
         meal={meal}
-        planDate={todayInColumbus()}
+        planDate={day}
+        showLog={isToday}
         totals={totals}
         canLog={parts.length > 0 && unsafeNames.length === 0}
-        retry={curated}
+        retry={curated && isToday}
       />
     </>
   )
