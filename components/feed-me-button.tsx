@@ -2,23 +2,21 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CircleNotchIcon } from "@phosphor-icons/react"
+import { CircleNotchIcon, ForkKnifeIcon } from "@phosphor-icons/react"
 import { MEAL_PERIODS, type MealPeriod } from "@/lib/menu-shared"
-import { requestPlate } from "@/lib/request-plate"
-import { Button } from "@/components/ui/button"
 
 const MEAL_LABELS: Record<MealPeriod, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" }
 const STORAGE_KEY = "bb:feed-me-meal"
 
 /**
  * Feed me with Breakfast / Lunch / Dinner chips. Starts on `defaultMeal` (the
- * current meal), then on the last meal picked on this device.
+ * current meal), then on the last meal picked on this device. Opens /feed,
+ * where the safe plates for that meal can be swiped through.
  */
 export function FeedMeButton({ defaultMeal }: { defaultMeal: MealPeriod }) {
   const router = useRouter()
   const [meal, setMeal] = useState<MealPeriod>(defaultMeal)
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -32,7 +30,6 @@ export function FeedMeButton({ defaultMeal }: { defaultMeal: MealPeriod }) {
 
   function choose(next: MealPeriod) {
     setMeal(next)
-    setError(null)
     try {
       window.localStorage.setItem(STORAGE_KEY, next)
     } catch {
@@ -40,15 +37,9 @@ export function FeedMeButton({ defaultMeal }: { defaultMeal: MealPeriod }) {
     }
   }
 
-  async function feedMe() {
+  function feedMe() {
     setPending(true)
-    setError(null)
-    try {
-      router.push(`/plate/${await requestPlate(undefined, { meal })}?meal=${meal}`)
-    } catch (e) {
-      setError((e as Error).message)
-      setPending(false)
-    }
+    router.push(`/feed?meal=${meal}`)
   }
 
   return (
@@ -64,8 +55,8 @@ export function FeedMeButton({ defaultMeal }: { defaultMeal: MealPeriod }) {
               aria-checked={on}
               onClick={() => choose(m)}
               disabled={pending}
-              className={`h-9 rounded-full border text-sm font-medium transition-colors ${
-                on ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted"
+              className={`h-10 rounded-full text-sm font-semibold transition-colors ${
+                on ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
               {MEAL_LABELS[m]}
@@ -73,24 +64,21 @@ export function FeedMeButton({ defaultMeal }: { defaultMeal: MealPeriod }) {
           )
         })}
       </div>
-      <Button onClick={feedMe} disabled={pending} className="h-16 w-full text-lg font-semibold">
-        {pending ? (
-          <>
-            <CircleNotchIcon className="size-5 animate-spin" />
-            Building your plate...
-          </>
-        ) : (
-          "Feed me"
-        )}
-      </Button>
+      <button
+        type="button"
+        onClick={feedMe}
+        disabled={pending}
+        className="flex h-16 w-full items-center gap-3 rounded-full bg-buckeye pr-6 pl-2 text-left font-heading text-xl font-extrabold text-white transition-transform active:scale-[0.98] disabled:opacity-80"
+      >
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-nut text-buckeye" aria-hidden>
+          {pending ? <CircleNotchIcon className="size-6 animate-spin" /> : <ForkKnifeIcon className="size-6" weight="bold" />}
+        </span>
+        <span className="flex-1">{pending ? "Finding plates…" : "Feed me"}</span>
+        <span className="text-sm font-semibold text-nut">{MEAL_LABELS[meal]}</span>
+      </button>
       <p className="sr-only" aria-live="polite">
-        {pending ? "Building your plate" : ""}
+        {pending ? "Finding plates that fit you" : ""}
       </p>
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
     </div>
   )
 }

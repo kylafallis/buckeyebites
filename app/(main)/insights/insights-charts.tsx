@@ -6,7 +6,7 @@ import type { MealPeriod } from "@/lib/menu-shared"
 // Single series: the brand red (3:1+ on white). Meals: the first three slots of
 // the reference categorical palette, in fixed order, validated together on white.
 // Aqua is under 3:1 there, so bars carry value labels and a table view exists.
-const LIKED_COLOR = "#bb0000"
+const LIKED_COLOR = "#c92c20"
 export const MEAL_COLORS: Record<MealPeriod, string> = { breakfast: "#2a78d6", lunch: "#eb6834", dinner: "#1baf7a" }
 const MEAL_LABELS: Record<MealPeriod, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" }
 

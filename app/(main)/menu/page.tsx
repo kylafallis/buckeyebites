@@ -95,7 +95,7 @@ async function ComingSoon({ userId, slug }: { userId: string; slug: string }) {
         <p className="py-12 text-center text-sm text-muted-foreground">Sample items aren&apos;t posted yet.</p>
       ) : (
         <>
-          <h2 className="pt-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Sample items</h2>
+          <h2 className="pt-4 pb-1 text-lg font-extrabold">Sample items</h2>
           <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => (
               <li key={item.id} className="border bg-card px-3 py-2">
