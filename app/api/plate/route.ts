@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { buildPlate, PlateError } from "@/lib/plate"
 
+// Two 25s Gemini tries plus saving: stop well before the platform limit.
+export const maxDuration = 60
+
 export async function POST() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
