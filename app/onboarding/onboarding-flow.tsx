@@ -4,13 +4,14 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { CheckIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
+import { foodKey } from "@/lib/menu-shared"
 import { ALLERGENS, DIETS, MODES, NUTRIENTS } from "@/lib/preferences"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SwipeDeck } from "./swipe-deck"
 
 export type OnboardingValues = {
-  diet: string
+  diets: string[]
   allergens: string[]
   mealsPerDay: number
   snacksPerDay: number
@@ -30,7 +31,7 @@ function check({ error }: { error: { message: string } | null }) {
 }
 
 const STEPS = [
-  { title: "Any diet we should know about?", subtitle: "We'll only show food that fits." },
+  { title: "Any diet we should know about?", subtitle: "Pick all that apply, or none for no restrictions." },
   { title: "Any food allergies?", subtitle: "Pick all that apply. Items with these are hidden." },
   { title: "How do you eat?", subtitle: "Per day, on a typical day." },
   { title: "What's your goal?", subtitle: "You can change this anytime." },
@@ -52,7 +53,7 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
   const set = <K extends keyof OnboardingValues>(key: K, value: OnboardingValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }))
 
-  const toggle = (key: "allergens" | "focusNutrients", value: string) =>
+  const toggle = (key: "diets" | "allergens" | "focusNutrients", value: string) =>
     setValues((v) => ({
       ...v,
       [key]: v[key].includes(value) ? v[key].filter((x) => x !== value) : [...v[key], value],
@@ -75,8 +76,18 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
   /** Saves the current step. Every write is an upsert so a retry never fails on duplicates. */
   async function save(signal: AbortSignal) {
     const supabase = createClient()
-    const upsertProfile = async (fields: Record<string, unknown>) =>
-      check(await supabase.from("profiles").upsert({ id: userId, ...fields }).abortSignal(signal))
+    const upsertProfile = async (fields: Record<string, unknown>) => {
+      const result = await supabase.from("profiles").upsert({ id: userId, ...fields }).abortSignal(signal)
+      // Before migration 007 there's no diets column: save the first diet in diet only.
+      if (result.error?.code === "PGRST204" && "diets" in fields) {
+        const { diets: _skipped, ...rest } = fields
+        void _skipped
+        return check(await supabase.from("profiles").upsert({ id: userId, ...rest }).abortSignal(signal))
+      }
+      check(result)
+    }
+    // diet keeps the first choice for older readers; diets holds them all.
+    const dietFields = { diets: values.diets, diet: values.diets[0] ?? "none" }
 
     const saveAllergens = async () => {
       if (values.allergens.length > 0) {
@@ -102,27 +113,54 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
       if (swipes.size === 0) return
       // Skip items that were removed from the menu since the deck loaded.
       const ids = [...swipes.keys()]
-      const existing = await supabase.from("menu_items").select("id").in("id", ids).abortSignal(signal)
-      check(existing)
-      const live = new Set((existing.data ?? []).map((row) => row.id))
-      const rows = ids
-        .filter((id) => live.has(id))
-        .map((id) => ({ user_id: userId, menu_item_id: id, liked: swipes.get(id)! }))
-      if (rows.length === 0) return
-      // A later swipe on the same item replaces the earlier one.
-      check(
-        await supabase
-          .from("food_swipes")
-          .upsert(rows, { onConflict: "user_id,menu_item_id" })
-          .abortSignal(signal)
-      )
+      const [current, previous] = await Promise.all([
+        supabase.from("menu_items").select("id, name").in("id", ids).abortSignal(signal),
+        supabase.from("food_swipes").select("menu_item_id, menu_items(name)").eq("user_id", userId).abortSignal(signal),
+      ])
+      check(current)
+      check(previous)
+      // The same food has a different menu item each day, so match earlier swipes by name.
+      const swipedBefore = new Map<string, number[]>()
+      for (const row of (previous.data ?? []) as unknown as { menu_item_id: number; menu_items: { name: string } | null }[]) {
+        if (!row.menu_items) continue
+        const key = foodKey(row.menu_items.name)
+        swipedBefore.set(key, [...(swipedBefore.get(key) ?? []), row.menu_item_id])
+      }
+
+      const fresh: { user_id: string; menu_item_id: number; liked: boolean }[] = []
+      const updates = new Map<boolean, number[]>()
+      for (const { id, name } of current.data ?? []) {
+        const liked = swipes.get(id)!
+        const earlier = swipedBefore.get(foodKey(name))
+        if (earlier) updates.set(liked, [...(updates.get(liked) ?? []), ...earlier])
+        else fresh.push({ user_id: userId, menu_item_id: id, liked })
+      }
+      // A food swiped before is updated, not added again.
+      for (const [liked, menuItemIds] of updates) {
+        check(
+          await supabase
+            .from("food_swipes")
+            .update({ liked })
+            .eq("user_id", userId)
+            .in("menu_item_id", menuItemIds)
+            .abortSignal(signal)
+        )
+      }
+      if (fresh.length > 0) {
+        check(
+          await supabase
+            .from("food_swipes")
+            .upsert(fresh, { onConflict: "user_id,menu_item_id" })
+            .abortSignal(signal)
+        )
+      }
     }
 
     const goals = { ...values.goals }
     if (values.mode === "macros") goals.protein_g = Number(protein)
     else delete goals.protein_g
     const preferences = {
-      diet: values.diet,
+      ...dietFields,
       meals_per_day: values.mealsPerDay,
       snacks_per_day: values.snacksPerDay,
       desserts_per_day: values.dessertsPerDay,
@@ -133,7 +171,7 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
     switch (step) {
       case 0:
-        return upsertProfile({ diet: values.diet })
+        return upsertProfile(dietFields)
       case 1:
         return saveAllergens()
       case 2:
@@ -228,13 +266,13 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
       <main className="flex-1 pb-4">
         {step === 0 && (
-          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Diet">
+          <div className="flex flex-col gap-2" role="group" aria-label="Diets">
             {DIETS.map((d) => (
               <Choice
                 key={d.value}
-                role="radio"
-                selected={values.diet === d.value}
-                onClick={() => set("diet", d.value)}
+                role="checkbox"
+                selected={values.diets.includes(d.value)}
+                onClick={() => toggle("diets", d.value)}
                 label={d.label}
               />
             ))}

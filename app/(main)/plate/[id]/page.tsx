@@ -4,11 +4,12 @@ import { notFound, redirect } from "next/navigation"
 import { WarningIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems } from "@/lib/menu.server"
-import { currentMealPeriod, MEAL_PERIODS, todayInColumbus, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
-import { foodKey } from "@/lib/plate"
+import { foodKey, MEAL_PERIODS, type MealPeriod, type MenuItem, todayInColumbus } from "@/lib/menu-shared"
 import { NutrientBadges } from "@/components/nutrient-badges"
 import { computeTotals, TOTAL_FIELDS, totalsForMode } from "@/lib/totals"
 import { BackBar } from "@/components/back-bar"
+import { PlatePhoto } from "@/components/plate-photo"
+import { platePhotos } from "@/lib/plate-photos"
 import { PageContainer } from "@/components/page-container"
 import { PlateActions } from "./plate-actions"
 
@@ -26,14 +27,17 @@ type RecipeRow = {
   recipe_items: {
     menu_item_id: number
     servings: number | null
-    menu_items: { name: string; meal_period: MealPeriod | null; served_on: string | null } | null
+    menu_items: { name: string; meal_period: MealPeriod | null; served_on: string | null; image_url: string | null } | null
   }[]
 }
 
 const isMealPeriod = (v: unknown): v is MealPeriod => MEAL_PERIODS.includes(v as MealPeriod)
 
-async function Plate({ params }: { params: Promise<{ id: string }> }) {
+const MEAL_LABELS: Record<MealPeriod, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" }
+
+async function Plate({ params, searchParams }: PageProps<"/plate/[id]">) {
   const recipeId = Number((await params).id)
+  const asked = (await searchParams).meal
   if (!Number.isInteger(recipeId)) notFound()
 
   const supabase = await createClient()
@@ -44,7 +48,7 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
   const [{ data }, { data: profile }] = await Promise.all([
     supabase
       .from("recipes")
-      .select("id, title, source, blurb, steps, tags, recipe_items(menu_item_id, servings, menu_items(name, meal_period, served_on))")
+      .select("id, title, source, blurb, steps, tags, recipe_items(menu_item_id, servings, menu_items(name, meal_period, served_on, image_url))")
       .eq("id", recipeId)
       .maybeSingle(),
     supabase.from("profiles").select("mode, focus_nutrients").eq("id", userId).maybeSingle(),
@@ -57,7 +61,10 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
   // Ready-made plates are matched by food name to today's menu for their meal;
   // other plates use the exact menu rows they were saved with.
   const curated = recipe.source === "curated"
-  const curatedMeal = recipe.tags?.find(isMealPeriod) ?? currentMealPeriod()
+  // The plate's meal comes from its own tags; ?meal= (from Feed me) picks among them.
+  const mealTags = (recipe.tags ?? []).filter(isMealPeriod)
+  const taggedMeal = isMealPeriod(asked) && mealTags.includes(asked) ? asked : mealTags[0]
+  const curatedMeal = taggedMeal ?? "lunch"
   const todaySafe = curated ? await getSafeItems(userId, curatedMeal, todayInColumbus(), { forPlate: true }) : []
   const todayByName = new Map(todaySafe.map((i) => [foodKey(i.name), i]))
   const menus = curated ? [] : [
@@ -106,13 +113,15 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
 
   const totals = computeTotals(parts)
   const shown = totalsForMode(profile?.mode ?? "balanced", profile?.focus_nutrients ?? [])
-  const meal =
-    recipe.tags?.find(isMealPeriod) ?? parts.find((p) => isMealPeriod(p.item.meal_period))?.item.meal_period ?? "lunch"
+  const meal: MealPeriod =
+    taggedMeal ?? parts.find((p) => isMealPeriod(p.item.meal_period))?.item.meal_period ?? "lunch"
+  const photos = platePhotos(recipe.recipe_items.flatMap((ri) => (ri.menu_items ? [ri.menu_items] : [])))
 
   return (
     <>
+      <PlatePhoto photos={photos} className="mb-4 aspect-[16/9] w-full" />
       <h1 className="text-xl font-semibold">{recipe.title ?? "Your plate"}</h1>
-      <p className="text-sm text-muted-foreground capitalize">{meal} at Scott</p>
+      <p className="text-sm text-muted-foreground">{MEAL_LABELS[meal]} at Scott</p>
 
       {unsafeNames.length > 0 && (
         <div className="mt-4 flex gap-2 border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert">
@@ -182,12 +191,12 @@ async function Plate({ params }: { params: Promise<{ id: string }> }) {
   )
 }
 
-export default function PlatePage({ params }: PageProps<"/plate/[id]">) {
+export default function PlatePage({ params, searchParams }: PageProps<"/plate/[id]">) {
   return (
     <PageContainer narrow>
       <BackBar />
       <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">Loading your plate…</p>}>
-        <Plate params={params} />
+        <Plate params={params} searchParams={searchParams} />
       </Suspense>
     </PageContainer>
   )

@@ -1,6 +1,6 @@
 import "server-only"
 import { createClient } from "@/lib/supabase/server"
-import { fitsDiet, isPlateItem, SCOTT_SLUG, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
+import { fitsDiet, isPlateItem, profileDiets, SCOTT_SLUG, type MealPeriod, type MenuItem } from "@/lib/menu-shared"
 
 const COLUMNS = `
   id, name, meal_period, served_on, serving_size, image_url,
@@ -71,14 +71,15 @@ async function filterSafe(
   const supabase = await createClient()
   const [items, profile, allergens] = await Promise.all([
     itemsQuery,
-    supabase.from("profiles").select("diet").eq("id", userId).maybeSingle(),
+    // "*" so this works before and after migration 007 adds profiles.diets.
+    supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase.from("user_allergens").select("allergen").eq("user_id", userId),
   ])
   if (items.error) throw items.error
   if (profile.error) throw profile.error
   if (allergens.error) throw allergens.error
 
-  const diet = profile.data?.diet ?? "none"
+  const diets = profileDiets(profile.data)
   const userAllergens = new Set(allergens.data.map((a) => a.allergen))
 
   return (items.data as unknown as (MenuItem & { locations?: unknown })[])
@@ -98,6 +99,6 @@ async function filterSafe(
       if (userAllergens.size > 0 && item.allergens.length === 0 && item.diet_tags.length === 0) {
         return false
       }
-      return fitsDiet(item.diet_tags, diet)
+      return fitsDiet(item.diet_tags, diets)
     })
 }

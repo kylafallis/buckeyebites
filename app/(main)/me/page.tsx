@@ -4,6 +4,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { SignOutIcon } from "@phosphor-icons/react/ssr"
 import { createClient } from "@/lib/supabase/server"
+import { profileDiets } from "@/lib/menu-shared"
 import { ALLERGENS, DIETS, labelFor, MODES, NUTRIENTS } from "@/lib/preferences"
 import { PageContainer } from "@/components/page-container"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -19,13 +20,15 @@ async function Me() {
   if (!userId) redirect("/login")
 
   const [{ data: profile }, { data: allergens }] = await Promise.all([
-    supabase.from("profiles").select("display_name, diet, mode, focus_nutrients, goals").eq("id", userId).maybeSingle(),
+    // "*" so this works before and after migration 007 adds profiles.diets.
+    supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase.from("user_allergens").select("allergen").eq("user_id", userId),
   ])
 
   const signupName = (claims?.claims?.user_metadata as { display_name?: unknown } | undefined)?.display_name
   const name = profile?.display_name?.trim() || (typeof signupName === "string" ? signupName.trim() : "")
   const mode = profile?.mode ?? "balanced"
+  const diets = profileDiets(profile)
   const protein = Number((profile?.goals as Record<string, unknown> | null)?.protein_g)
   const goalDetail =
     mode === "nutrients" && (profile?.focus_nutrients ?? []).length > 0
@@ -37,7 +40,7 @@ async function Me() {
   const rows: [string, string][] = [
     ["Name", name || "Not set"],
     ["Email", typeof claims?.claims?.email === "string" ? claims.claims.email : "—"],
-    ["Diet", labelFor(DIETS, profile?.diet ?? "none")],
+    ["Diet", diets.length > 0 ? diets.map((d) => labelFor(DIETS, d)).join(", ") : "No restrictions"],
     [
       "Allergies",
       (allergens ?? []).length > 0 ? allergens!.map((a) => labelFor(ALLERGENS, a.allergen)).join(", ") : "None",

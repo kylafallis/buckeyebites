@@ -15,4 +15,6 @@ export type RecipeCard = {
   diets: RecipeDiet[]
   /** nutrient_tags keys (high_iron, vit_d, calcium) from the items or the recipe's tags. */
   nutrientTags: string[]
+  /** Up to 4 item photos for the card picture. */
+  photos: { src: string; alt: string }[]
 }

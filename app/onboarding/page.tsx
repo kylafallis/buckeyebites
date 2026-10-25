@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { profileDiets } from "@/lib/menu-shared"
 import { OnboardingFlow, type OnboardingValues } from "./onboarding-flow"
 
 export const metadata: Metadata = {
@@ -17,7 +18,8 @@ async function OnboardingLoader() {
   const [{ data: profile }, { data: allergens }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("diet, mode, focus_nutrients, goals, meals_per_day, snacks_per_day, desserts_per_day")
+      // "*" so this works before and after migration 007 adds profiles.diets.
+      .select("*")
       .eq("id", userId)
       .maybeSingle(),
     supabase.from("user_allergens").select("allergen").eq("user_id", userId),
@@ -25,7 +27,7 @@ async function OnboardingLoader() {
 
   const goals = (profile?.goals ?? {}) as Record<string, unknown>
   const initial: OnboardingValues = {
-    diet: profile?.diet ?? "none",
+    diets: profileDiets(profile),
     allergens: (allergens ?? []).map((a) => a.allergen),
     mealsPerDay: profile?.meals_per_day ?? 3,
     snacksPerDay: profile?.snacks_per_day ?? 1,

@@ -5,6 +5,7 @@ import { ArrowsLeftRightIcon, CheckCircleIcon, CircleNotchIcon, MinusCircleIcon,
 import type { DupeIngredient, DupeResult } from "@/lib/dupe-shared"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PlatePhoto } from "@/components/plate-photo"
 import { PlateActions } from "../plate/[id]/plate-actions"
 
 type Mode = "link" | "paste"
@@ -120,6 +121,7 @@ function DupeResultView({ result, userId }: { result: DupeResult; userId: string
 
   return (
     <section aria-label="Your dupe" className="flex flex-col gap-4">
+      <PlatePhoto photos={result.photos} className="aspect-[16/9] w-full" />
       <div>
         <h2 className="text-lg font-semibold">{result.title}</h2>
         <p className="text-xs text-muted-foreground capitalize">

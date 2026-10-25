@@ -25,6 +25,8 @@ export type DupeResult = {
   totals: Totals
   /** "ai" when Gemini matched it, "keyword" when the AI-free fallback did. */
   method: "ai" | "keyword"
+  /** Up to 4 photos of the matched Scott items. */
+  photos: { src: string; alt: string }[]
   /** The original recipe's nutrition, as written on its page. */
   sourceNutrition: Record<string, string> | null
 }

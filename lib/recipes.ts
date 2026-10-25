@@ -11,6 +11,7 @@ import {
 } from "@/lib/menu-shared"
 import { safeCuratedPlates, safePlatesForSlot } from "@/lib/plate"
 import { RECIPE_DIETS, type RecipeCard } from "@/lib/recipes-shared"
+import { platePhotos } from "@/lib/plate-photos"
 
 // Recipe tags from the plates CSV that mean the same as an item nutrient tag.
 const RECIPE_NUTRIENT_TAGS: Record<string, string> = { iron: "high_iron", "vitamin d": "vit_d", calcium: "calcium" }
@@ -33,8 +34,9 @@ function toCard(
     source: recipe.source,
     meals,
     items: items.map((i) => ({ name: i.name, station: i.station?.name ?? null })),
-    diets: RECIPE_DIETS.filter((d) => items.every((i) => fitsDiet(i.diet_tags, d))),
+    diets: RECIPE_DIETS.filter((d) => items.every((i) => fitsDiet(i.diet_tags, [d]))),
     nutrientTags: NUTRIENT_TAGS.map((n) => n.tag).filter((t) => nutrientTags.has(t)),
+    photos: platePhotos(items),
   }
 }
 

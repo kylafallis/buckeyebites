@@ -66,7 +66,7 @@ export function PlateActions({
     setRetrying(true)
     setError(null)
     try {
-      router.push(`/plate/${await requestPlate(recipeId)}`)
+      router.push(`/plate/${await requestPlate(recipeId, { meal })}?meal=${meal}`)
     } catch (e) {
       setError((e as Error).message)
       setRetrying(false)

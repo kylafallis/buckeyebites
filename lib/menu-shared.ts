@@ -30,13 +30,15 @@ export type MenuItem = {
   station: { id: number; name: string; floor: number | null } | null
 }
 
+/** Food names are the stable key: menu item ids change every day and meal. */
+export const foodKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ")
+
 /** Items a plate may use: condiments and items with unknown calories only show on /menu. */
 export function isPlateItem(item: Pick<MenuItem, "food_group" | "calories">) {
   return item.food_group !== "condiment" && item.calories != null
 }
 
-/** Whether an item's diet_tags fit the user's diet. */
-export function fitsDiet(tags: string[], diet: string) {
+function fitsOneDiet(tags: string[], diet: string) {
   switch (diet) {
     case "vegan":
       return tags.includes("vegan")
@@ -46,9 +48,26 @@ export function fitsDiet(tags: string[], diet: string) {
       return ["pescatarian", "vegetarian", "vegan"].some((t) => tags.includes(t))
     case "halal_friendly":
       return tags.includes("halal") || tags.includes("vegetarian")
+    case "gluten_free":
+      return tags.includes("gluten_free")
     default:
       return true
   }
+}
+
+/** Whether an item's diet_tags fit every one of the user's diets. */
+export function fitsDiet(tags: string[], diets: readonly string[]) {
+  return diets.every((d) => fitsOneDiet(tags, d))
+}
+
+/**
+ * A profile's diets: profiles.diets, or the older single profiles.diet when
+ * diets is empty or the column doesn't exist yet (before migration 007).
+ */
+export function profileDiets(profile: { diet?: string | null; diets?: string[] | null } | null | undefined): string[] {
+  const diets = (profile?.diets ?? []).filter((d) => d && d !== "none")
+  if (diets.length > 0) return [...new Set(diets)]
+  return profile?.diet && profile.diet !== "none" ? [profile.diet] : []
 }
 
 // Scott's hours are in Columbus time regardless of where the server runs.

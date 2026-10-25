@@ -13,6 +13,8 @@ import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageContainer } from "@/components/page-container"
 import { FeedMeButton } from "@/components/feed-me-button"
+import { PlatePhoto } from "@/components/plate-photo"
+import { platePhotos } from "@/lib/plate-photos"
 
 export const metadata: Metadata = {
   title: "Dashboard · BuckeyeBites",
@@ -89,7 +91,7 @@ async function Dashboard() {
       <div className="md:grid md:grid-cols-2 md:gap-x-8">
         <div>
           <div className="mt-5">
-            <FeedMeButton />
+            <FeedMeButton defaultMeal={meal} />
           </div>
 
           <Section title="Today's progress">
@@ -140,7 +142,11 @@ async function Dashboard() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {plates.slice(0, 3).map((plate) => (
-              <Card key={plate.id} size="sm" className="justify-between">
+              <Card key={plate.id} size="sm" className="justify-between overflow-hidden pt-0">
+                <PlatePhoto
+                  photos={platePhotos(plate.parts.map((p) => p.item))}
+                  className="aspect-[16/9] w-full"
+                />
                 <CardHeader>
                   <CardTitle>{plate.title ?? "Scott plate"}</CardTitle>
                 </CardHeader>

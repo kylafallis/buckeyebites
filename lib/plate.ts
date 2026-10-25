@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSafeItems } from "@/lib/menu.server"
 import {
   currentMealPeriod,
+  foodKey,
   formatDay,
   MEAL_PERIODS,
   NUTRIENT_TAGS,
@@ -36,8 +37,6 @@ type CuratedRow = {
   recipe_items: { servings: number | null; menu_items: { name: string } | null }[]
 }
 
-/** Food names are the stable key: menu item ids change every day and meal. */
-export const foodKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ")
 
 const isMealPeriod = (v: unknown): v is MealPeriod => MEAL_PERIODS.includes(v as MealPeriod)
 
@@ -175,8 +174,8 @@ export async function pickPlate(
   ])
 
   if (plates.length === 0) {
-    const day = date === todayInColumbus() ? "today's menu" : `the menu for ${formatDay(date)}`
-    throw new PlateError(`No ready-made ${meal} plate fits your diet and allergies on ${day} yet.`, 422)
+    const day = date === todayInColumbus() ? "today" : `on ${formatDay(date)}`
+    throw new PlateError(`No ready-made ${meal} plate fits your diet and allergies ${day}. Try another meal.`, 422)
   }
 
   const choices = plates.length > 1 ? plates.filter((p) => p.id !== exclude) : plates

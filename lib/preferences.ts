@@ -1,9 +1,10 @@
+// Multi-select: an item must fit every chosen diet. None chosen = no restrictions.
 export const DIETS = [
-  { value: "none", label: "No restrictions" },
   { value: "vegetarian", label: "Vegetarian" },
   { value: "vegan", label: "Vegan" },
   { value: "pescatarian", label: "Pescatarian" },
   { value: "halal_friendly", label: "Halal-friendly" },
+  { value: "gluten_free", label: "Gluten-free" },
 ] as const
 
 export const ALLERGENS = [

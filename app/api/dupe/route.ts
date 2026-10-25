@@ -5,6 +5,7 @@ import { currentMealPeriod, isSauce, SCOTT_SLUG, todayInColumbus, type MenuItem 
 import { buildSteps, DupeError, fetchRecipe, matchIngredients, MAX_INGREDIENTS } from "@/lib/dupe"
 import { aiMatchIngredients } from "@/lib/dupe-ai"
 import type { DupeResult } from "@/lib/dupe-shared"
+import { platePhotos } from "@/lib/plate-photos"
 import { computeTotals, type Totals } from "@/lib/totals"
 
 /**
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
       steps,
       totals,
       method: ai ? "ai" : "keyword",
+      photos: platePhotos(used),
       sourceNutrition: recipe?.nutrition ?? null,
     }
     return Response.json(result)

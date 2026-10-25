@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { getSafeItems } from "@/lib/menu.server"
-import { isSauce, MEAL_PERIODS, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
+import { foodKey, isSauce, MEAL_PERIODS, todayInColumbus, type MenuItem } from "@/lib/menu-shared"
 
 const DECK_SIZE = 15
 
@@ -18,9 +18,27 @@ export async function loadSwipeItems(): Promise<MenuItem[]> {
   if (!userId) return []
 
   const date = todayInColumbus()
-  const lists = await Promise.all(MEAL_PERIODS.map((p) => getSafeItems(userId, p, date)))
+  const [swiped, ...lists] = await Promise.all([
+    supabase.from("food_swipes").select("menu_items(name)").eq("user_id", userId),
+    ...MEAL_PERIODS.map((p) => getSafeItems(userId, p, date)),
+  ])
+  if (swiped.error) throw swiped.error
 
-  const items = lists.flat().filter((item) => !isSauce(item) && item.calories != null)
+  // Redoing onboarding (Me > Edit preferences) skips foods already swiped.
+  const seen = new Set(
+    (swiped.data as unknown as { menu_items: { name: string } | null }[]).flatMap((s) =>
+      s.menu_items ? [foodKey(s.menu_items.name)] : []
+    )
+  )
+  // The three meals repeat foods: keep one card per food name.
+  const items: MenuItem[] = []
+  for (const item of lists.flat()) {
+    if (isSauce(item) || item.calories == null) continue
+    const key = foodKey(item.name)
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push(item)
+  }
   for (let i = items.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[items[i], items[j]] = [items[j], items[i]]

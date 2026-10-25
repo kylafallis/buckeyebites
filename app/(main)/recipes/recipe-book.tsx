@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import { NUTRIENT_TAGS, type MealPeriod } from "@/lib/menu-shared"
 import type { RecipeCard, RecipeDiet } from "@/lib/recipes-shared"
 import { NutrientBadges } from "@/components/nutrient-badges"
+import { PlatePhoto } from "@/components/plate-photo"
 
 const MEALS: { value: MealPeriod; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
@@ -91,6 +92,7 @@ export function RecipeBook({
             const isSaved = saved.has(card.id)
             return (
               <li key={card.id} className="relative border bg-card p-4 hover:bg-muted/40">
+                <PlatePhoto photos={card.photos} className="-mx-4 -mt-4 mb-3 aspect-[16/9]" />
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link

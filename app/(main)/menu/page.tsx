@@ -72,7 +72,7 @@ async function LiveMenu({ userId, slug }: { userId: string; slug: string }) {
       {/* Feed me builds plates from Scott's menu only. */}
       {slug === SCOTT_SLUG && (
         <div className="mt-4 md:max-w-sm">
-          <FeedMeButton />
+          <FeedMeButton defaultMeal={currentMealPeriod()} />
         </div>
       )}
       <MenuBrowser
