@@ -168,7 +168,7 @@ export function DayPlan({
                     <p className="font-semibold">{planned.title}</p>
                     <div className="flex gap-4">
                       <Link
-                        href={`/plate/${planned.recipeId}?meal=${meal}`}
+                        href={`/plate/${planned.recipeId}?meal=${meal}&date=${date}`}
                         className="inline-flex min-h-11 items-center text-sm font-semibold text-primary"
                       >
                         See the route
