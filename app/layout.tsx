@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "BuckeyeBites",
   description: "Ohio State dining, planned around you.",
   icons: { icon: "/favicon.png", apple: "/apple-touch-icon.png" },
-  appleWebApp: { capable: true, title: "BuckeyeBite", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "BuckeyeBites", statusBarStyle: "default" },
   // Next only emits mobile-web-app-capable; older iOS versions need the Apple name.
   other: { "apple-mobile-web-app-capable": "yes" },
 };

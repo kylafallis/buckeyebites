@@ -8,7 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 // Signed-in users never see this page: proxy.ts redirects them to /dashboard.
 
 export const metadata: Metadata = {
-  title: "BuckeyeBite · Your plate, planned.",
+  title: "BuckeyeBites · Your plate, planned.",
   description:
     "One tap turns today's Traditions at Scott menu into a full plate built for your diet, allergies and goals.",
 }

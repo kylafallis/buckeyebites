@@ -55,7 +55,7 @@ async function Insights() {
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Most-liked foods</CardTitle>
-          <p className="text-xs text-muted-foreground">Top 10 by likes on BuckeyeBite&apos;s swipe deck</p>
+          <p className="text-xs text-muted-foreground">Top 10 by likes on the BuckeyeBites swipe deck</p>
         </CardHeader>
         <CardContent>
           {topLiked.length === 0 ? empty("No likes yet.") : <TopLikedChart rows={topLiked} />}
@@ -134,7 +134,7 @@ export default function InsightsPage() {
       <div className="mt-4 border-l-2 border-primary bg-primary/5 px-3 py-2 text-sm" role="note">
         <p className="font-semibold">Includes simulated demo data</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Likes and planned servings come from BuckeyeBite (swipes and meal plans). The waste figures in the cards
+          Likes and planned servings come from BuckeyeBites (swipes and meal plans). The waste figures in the cards
           come from The Lantern.
         </p>
       </div>

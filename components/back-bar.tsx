@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { ArrowLeftIcon, XIcon } from "@phosphor-icons/react"
 
 // Set once the user has moved between pages inside the app, so "back" is
-// known to stay in BuckeyeBite. history.length can't tell: a tab opened on
+// known to stay in BuckeyeBites. history.length can't tell: a tab opened on
 // another site, then on a plate link, has history that leaves the app.
 let navigatedInApp = false
 
