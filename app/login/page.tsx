@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
+import { AuthShell } from "@/components/auth-shell"
 import { LoginForm } from "./login-form"
 
 export const metadata: Metadata = {
@@ -8,10 +9,10 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <AuthShell title="Welcome back" subtitle="Log in to see what's safe for you at Scott today.">
       <Suspense>
         <LoginForm />
       </Suspense>
-    </main>
+    </AuthShell>
   )
 }

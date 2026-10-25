@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { AuthShell } from "@/components/auth-shell"
 import { SignupForm } from "./signup-form"
 
 export const metadata: Metadata = {
@@ -7,8 +8,8 @@ export const metadata: Metadata = {
 
 export default function SignupPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <AuthShell title="Create your account" subtitle="Two minutes of setup, then one tap to a plate that fits you.">
       <SignupForm />
-    </main>
+    </AuthShell>
   )
 }

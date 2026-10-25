@@ -5,6 +5,8 @@ import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-mo
 import { HeartIcon, XIcon } from "@phosphor-icons/react"
 import type { MenuItem } from "@/lib/menu-shared"
 import { Badge } from "@/components/ui/badge"
+import { PlateDrawing } from "@/components/plate-drawing"
+import { PlatePhoto } from "@/components/plate-photo"
 import { Button } from "@/components/ui/button"
 import { loadSwipeItems } from "./actions"
 
@@ -132,17 +134,17 @@ function SwipeCard({
       <FoodCard item={item} />
       <motion.span
         style={{ opacity: likeOpacity }}
-        className="absolute top-4 left-4 border-2 border-primary bg-background px-2 py-1 text-sm font-bold text-primary"
+        className="absolute top-4 left-4 rounded-full bg-sage px-3 py-1.5 text-sm font-bold text-white shadow"
         aria-hidden
       >
-        LIKE
+        Like
       </motion.span>
       <motion.span
         style={{ opacity: passOpacity }}
-        className="absolute top-4 right-4 border-2 border-foreground bg-background px-2 py-1 text-sm font-bold"
+        className="absolute top-4 right-4 rounded-full bg-foreground px-3 py-1.5 text-sm font-bold text-background shadow"
         aria-hidden
       >
-        PASS
+        Pass
       </motion.span>
     </motion.div>
   )
@@ -151,19 +153,20 @@ function SwipeCard({
 function FoodCard({ item, className = "" }: { item: MenuItem; className?: string }) {
   const tags = item.diet_tags.filter((t) => !t.startsWith("contains_"))
   return (
-    <div className={`absolute inset-0 flex flex-col overflow-hidden border bg-card shadow-sm select-none ${className}`}>
-      {item.image_url ? (
-        // Menu photos come from Nutrislice's CDN, so skip next/image's domain allowlist.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.image_url} alt="" className="h-48 w-full object-cover" draggable={false} />
-      ) : (
-        <div className="flex h-48 items-center justify-center bg-muted text-4xl" aria-hidden>
-          🍽️
-        </div>
-      )}
+    <div className={`absolute inset-0 flex flex-col overflow-hidden rounded-3xl bg-card shadow-[0_10px_30px_rgba(31,42,35,0.10)] select-none ${className}`}>
+      {/* Whole photo over a blurred copy, like plate photos; a drawn plate when there's no photo. */}
+      <div className="pointer-events-none h-52 w-full">
+        {item.image_url ? (
+          <PlatePhoto photos={[{ src: item.image_url, alt: "" }]} className="h-full w-full" />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-muted" aria-hidden>
+            <PlateDrawing foods={[{ name: item.name, food_group: item.food_group, calories: item.calories, servings: 1 }]} size={150} />
+          </div>
+        )}
+      </div>
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <h2 className="text-lg leading-tight font-semibold">{item.name}</h2>
-        <p className="text-xs text-muted-foreground">
+        <h2 className="text-xl leading-tight font-extrabold">{item.name}</h2>
+        <p className="text-sm text-muted-foreground">
           {[item.station?.name, item.serving_size].filter(Boolean).join(" · ")}
         </p>
         {tags.length > 0 && (
@@ -182,7 +185,7 @@ function FoodCard({ item, className = "" }: { item: MenuItem; className?: string
 
 function Message({ title, body }: { title: string; body: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 border border-dashed p-6 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-3xl border-2 border-dashed border-input p-6 text-center">
       <p className="font-medium">{title}</p>
       <p className="text-sm text-muted-foreground">{body}</p>
     </div>

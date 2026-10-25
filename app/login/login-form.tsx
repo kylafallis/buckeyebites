@@ -7,14 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import { authErrorMessage } from "@/lib/supabase/auth-errors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { authButton, authInput, authLabel } from "@/components/auth-styles"
 
 export function LoginForm() {
   const router = useRouter()
@@ -44,17 +37,14 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle className="text-lg text-primary">BuckeyeBites</CardTitle>
-        <CardDescription>Log in to your account.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <label htmlFor="email" className="text-xs font-medium">
+    <div className="flex flex-col gap-6">
+      <div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+          <label htmlFor="email" className={`${authLabel} mt-2 first:mt-0`}>
             Email
           </label>
           <Input
+            className={authInput}
             id="email"
             type="email"
             name="email"
@@ -64,10 +54,11 @@ export function LoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             aria-invalid={!!error || undefined}
           />
-          <label htmlFor="password" className="text-xs font-medium">
+          <label htmlFor="password" className={`${authLabel} mt-2 first:mt-0`}>
             Password
           </label>
           <Input
+            className={authInput}
             id="password"
             type="password"
             name="password"
@@ -78,21 +69,21 @@ export function LoginForm() {
             aria-invalid={!!error || undefined}
           />
           {error && (
-            <p className="text-xs text-destructive" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending} className={`${authButton} mt-3`}>
             {pending ? "Logging in…" : "Log in"}
           </Button>
         </form>
-      </CardContent>
-      <CardFooter className="justify-center gap-1 text-xs">
+      </div>
+      <p className="flex justify-center gap-1 text-sm">
         New here?
-        <Link href="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link href="/signup" className="font-semibold text-primary underline-offset-4 hover:underline">
           Create an account
         </Link>
-      </CardFooter>
-    </Card>
+      </p>
+    </div>
   )
 }

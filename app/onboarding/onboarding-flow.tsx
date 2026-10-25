@@ -8,6 +8,7 @@ import { foodKey } from "@/lib/menu-shared"
 import { ALLERGENS, DIETS, MODES, NUTRIENTS } from "@/lib/preferences"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Logo } from "@/components/logo"
 import { SwipeDeck } from "./swipe-deck"
 
 export type OnboardingValues = {
@@ -32,7 +33,7 @@ function check({ error }: { error: { message: string } | null }) {
 
 const STEPS = [
   { title: "Any diet we should know about?", subtitle: "Pick all that apply, or none for no restrictions." },
-  { title: "Any food allergies?", subtitle: "Pick all that apply. Items with these are hidden." },
+  { title: "Any food allergies?", subtitle: "Pick all that apply. Foods with these never show up for you, anywhere in the app." },
   { title: "How do you eat?", subtitle: "Per day, on a typical day." },
   { title: "What's your goal?", subtitle: "You can change this anytime." },
   { title: "What looks good?", subtitle: "Swipe right to like, left to pass." },
@@ -241,27 +242,30 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4">
-      <header className="pt-6 pb-4">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
+      <header className="pt-5 pb-4">
+        <div className="flex items-center justify-between">
+          <Logo priority className="-ml-1.5 h-10" />
+          <span className="text-sm font-semibold text-muted-foreground">
             Step {step + 1} of {STEPS.length}
           </span>
         </div>
         <div
-          className="mt-2 h-1.5 w-full bg-muted"
+          className="mt-4 flex h-2 w-full gap-1"
           role="progressbar"
           aria-label="Onboarding progress"
           aria-valuemin={1}
           aria-valuemax={STEPS.length}
           aria-valuenow={step + 1}
         >
-          <div
-            className="h-full bg-primary transition-[width] duration-300"
-            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-          />
+          {STEPS.map((s, i) => (
+            <span
+              key={s.title}
+              className={`h-full flex-1 rounded-full transition-colors duration-300 ${i <= step ? "bg-buckeye" : "bg-muted"}`}
+            />
+          ))}
         </div>
-        <h1 className="mt-6 text-xl font-semibold">{STEPS[step].title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{STEPS[step].subtitle}</p>
+        <h1 className="mt-6 text-3xl leading-tight font-extrabold">{STEPS[step].title}</h1>
+        <p className="mt-1.5 text-base text-muted-foreground">{STEPS[step].subtitle}</p>
       </header>
 
       <main className="flex-1 pb-4">
@@ -294,7 +298,7 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
         )}
 
         {step === 2 && (
-          <div className="flex flex-col divide-y border-y">
+          <div className="flex flex-col divide-y rounded-2xl bg-card px-4">
             <Stepper label="Meals" value={values.mealsPerDay} min={1} max={6} onChange={(n) => set("mealsPerDay", n)} />
             <Stepper label="Snacks" value={values.snacksPerDay} min={0} max={5} onChange={(n) => set("snacksPerDay", n)} />
             <Stepper label="Desserts" value={values.dessertsPerDay} min={0} max={3} onChange={(n) => set("dessertsPerDay", n)} />
@@ -329,7 +333,7 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
             )}
 
             {values.mode === "macros" && (
-              <label className="mt-3 flex flex-col gap-1.5 text-xs font-medium">
+              <label className="mt-3 flex flex-col gap-1.5 text-sm font-semibold">
                 Daily protein goal (grams)
                 <Input
                   type="number"
@@ -339,7 +343,7 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
                   placeholder="120"
                   value={protein}
                   onChange={(e) => setProtein(e.target.value)}
-                  className="h-11 text-base md:text-base"
+                  className="h-12 rounded-xl bg-card text-base md:text-base"
                 />
               </label>
             )}
@@ -359,11 +363,16 @@ export function OnboardingFlow({ userId, initial }: { userId: string; initial: O
 
       <footer className="sticky bottom-0 flex gap-2 border-t bg-background py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {step > 0 && (
-          <Button variant="outline" className="h-11 flex-1 text-sm" onClick={back} disabled={saving}>
+          <Button
+            variant="outline"
+            className="h-12 flex-1 rounded-xl border-2 border-foreground text-base font-bold"
+            onClick={back}
+            disabled={saving}
+          >
             Back
           </Button>
         )}
-        <Button className="h-11 flex-[2] text-sm" onClick={next} disabled={saving}>
+        <Button className="h-12 flex-[2] rounded-xl text-base font-bold" onClick={next} disabled={saving}>
           {saving ? "Saving…" : isLast ? "Finish" : "Next"}
         </Button>
       </footer>
@@ -390,15 +399,20 @@ function Choice({
       role={role}
       aria-checked={selected}
       onClick={onClick}
-      className={`flex min-h-12 items-center justify-between gap-3 border px-3 py-2.5 text-left text-sm transition-colors ${
-        selected ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-muted"
+      className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left text-base transition-colors ${
+        selected ? "border-primary bg-accent" : "border-transparent bg-card hover:bg-muted"
       }`}
     >
       <span>
-        <span className="block font-medium">{label}</span>
-        {description && <span className="block text-xs text-muted-foreground">{description}</span>}
+        <span className="block font-semibold">{label}</span>
+        {description && <span className="block text-sm text-muted-foreground">{description}</span>}
       </span>
-      <CheckIcon className={`size-4 shrink-0 text-primary ${selected ? "" : "invisible"}`} weight="bold" />
+      <span
+        className={`flex size-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-primary text-white" : "border-2 border-input"}`}
+        aria-hidden
+      >
+        {selected && <CheckIcon className="size-3.5" weight="bold" />}
+      </span>
     </button>
   )
 }
@@ -418,25 +432,25 @@ function Stepper({
 }) {
   return (
     <div className="flex items-center justify-between py-3">
-      <span className="text-sm font-medium">{label}</span>
+      <span className="text-base font-semibold">{label}</span>
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
           size="icon-lg"
-          className="size-11"
+          className="size-11 rounded-full"
           aria-label={`Fewer ${label.toLowerCase()}`}
           disabled={value <= min}
           onClick={() => onChange(value - 1)}
         >
           <MinusIcon />
         </Button>
-        <span className="w-6 text-center text-lg font-semibold tabular-nums" aria-live="polite">
+        <span className="w-6 text-center font-heading text-xl font-extrabold tabular-nums" aria-live="polite">
           {value}
         </span>
         <Button
           variant="outline"
           size="icon-lg"
-          className="size-11"
+          className="size-11 rounded-full"
           aria-label={`More ${label.toLowerCase()}`}
           disabled={value >= max}
           onClick={() => onChange(value + 1)}
