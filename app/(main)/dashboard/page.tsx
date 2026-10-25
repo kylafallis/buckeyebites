@@ -67,7 +67,7 @@ async function Dashboard() {
       .eq("hour", hour)
       .maybeSingle(),
     getSafeItems(userId, meal, today, { forPlate: true })
-      .then((items) => safeCuratedPlates(supabase, items))
+      .then((items) => safeCuratedPlates(supabase, items, meal))
       .catch((error): CuratedPlate[] => {
         // Fail closed: no suggestions rather than ones we couldn't check.
         console.error("Dashboard plate suggestions failed:", error)
