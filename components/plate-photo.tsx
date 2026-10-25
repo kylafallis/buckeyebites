@@ -5,7 +5,9 @@ import { BowlFoodIcon } from "@phosphor-icons/react"
 import type { PhotoSource } from "@/lib/plate-photos"
 
 /**
- * A plate's picture: one full photo, or a 2x2 collage of up to 4. Photos that
+ * A plate's picture: one full photo, or a 2x2 collage of up to 4. Each photo
+ * is shown whole (object-contain) so the food is never cropped off-center,
+ * over a blurred copy of itself that fills the rest of the frame. Photos that
  * fail to load drop out; with none left it's an off-white block with a bowl.
  */
 export function PlatePhoto({ photos, className = "" }: { photos: PhotoSource[]; className?: string }) {
@@ -22,16 +24,25 @@ export function PlatePhoto({ photos, className = "" }: { photos: PhotoSource[]; 
   }
 
   const img = (p: PhotoSource, cell = "") => (
-    // Menu photos come from external hosts, so skip next/image's domain allowlist.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      key={p.src}
-      src={p.src}
-      alt={p.alt}
-      loading="lazy"
-      onError={() => drop(p.src)}
-      className={`h-full w-full object-cover ${cell}`}
-    />
+    <div key={p.src} className={`relative h-full w-full overflow-hidden bg-white ${cell}`}>
+      {/* Menu photos come from external hosts, so skip next/image's domain allowlist. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={p.src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-2xl"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={p.src}
+        alt={p.alt}
+        loading="lazy"
+        onError={() => drop(p.src)}
+        className="relative h-full w-full object-contain"
+      />
+    </div>
   )
 
   return (

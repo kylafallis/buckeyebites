@@ -63,55 +63,60 @@ export function splitPlate(foods: DrawnFood[]) {
   }
 }
 
-/** conic-gradient stops: one slice per color, sized in percent, with thin white gaps between. */
-function gradientStops(colors: string[], sizes: number[]) {
-  const gap = colors.length > 1 ? 0.8 : 0
-  const stops: string[] = []
-  let at = 0
-  colors.forEach((color, i) => {
-    const end = at + sizes[i]
-    stops.push(`${color} ${at}% ${end - gap}%`)
-    if (gap) stops.push(`#ffffff ${end - gap}% ${end}%`)
-    at = end
-  })
-  return stops
+// SVG geometry, in a 200 x 200 box centered on (100, 100).
+const C = 100
+const point = (r: number, a: number) => `${(C + r * Math.cos(a)).toFixed(2)} ${(C + r * Math.sin(a)).toFixed(2)}`
+
+/** One ring slice from angle a0 to a1 (radians), between radius r and R. */
+function slicePath(r: number, R: number, a0: number, a1: number) {
+  const large = a1 - a0 > Math.PI ? 1 : 0
+  return `M ${point(R, a0)} A ${R} ${R} 0 ${large} 1 ${point(R, a1)} L ${point(r, a1)} A ${r} ${r} 0 ${large} 0 ${point(r, a0)} Z`
 }
 
-/** The drawn plate. `size` is the outer diameter in px. */
+/**
+ * The drawn plate: every food gets an equal slice of a ring, in the food's own
+ * color, with even white gaps between slices. Sauces sit in a small dish in
+ * the middle. `size` is the diameter in px.
+ */
 export function PlateDrawing({ foods, size = 260, className = "" }: { foods: DrawnFood[]; size?: number; className?: string }) {
   const { mains, sauces } = splitPlate(foods)
   const slices = mains.length > 0 ? mains : sauces
-  // Bigger portions get bigger slices, but every food stays visible (8% minimum).
-  const weights = slices.map((f) => Math.max((f.calories ?? 60) * f.servings, 40))
-  const total = weights.reduce((a, b) => a + b, 0) || 1
-  const shares = weights.map((w) => Math.max(w / total, 0.08))
-  const scale = shares.reduce((a, b) => a + b, 0)
-  const stops = gradientStops(slices.map(foodColor), shares.map((x) => (x / scale) * 100))
   const center = mains.length > 0 ? sauces[0] : undefined
   const label = `Drawing of the plate: ${mains.map((f) => f.name).join(", ")}${
-    center ? `, with ${sauces.map((s) => s.name).join(" and ")} in the middle` : ""
+    center ? `, with ${sauces.map((x) => x.name).join(" and ")} in the middle` : ""
   }`
 
-  const rim = Math.round(size * 0.045)
-  const inner = size - rim * 2 - Math.round(size * 0.12)
+  const R = 80 // outer edge of the food
+  const r = center ? 34 : 24 // inner edge: room for the sauce dish, or a small clean center
+  const step = (2 * Math.PI) / Math.max(slices.length, 1)
+  const start = -Math.PI / 2 // first slice starts at 12 o'clock
+
   return (
     <div
       role="img"
       aria-label={label}
-      className={`grid shrink-0 place-items-center rounded-full bg-white shadow-[0_10px_30px_rgba(31,42,35,0.10)] ${className}`}
-      style={{ width: size, height: size, border: `${rim}px solid #E9ECE4` }}
+      className={`shrink-0 rounded-full shadow-[0_10px_30px_rgba(31,42,35,0.10)] ${className}`}
+      style={{ width: size, height: size }}
     >
-      <div
-        className="grid place-items-center rounded-full"
-        style={{ width: inner, height: inner, background: `conic-gradient(${stops.join(", ")})` }}
-      >
-        {center && (
-          <div
-            className="rounded-full border-4 border-white"
-            style={{ width: inner * 0.27, height: inner * 0.27, background: foodColor(center) }}
-          />
+      <svg viewBox="0 0 200 200" width={size} height={size} aria-hidden>
+        <circle cx={C} cy={C} r={99} fill="#E9ECE4" />
+        <circle cx={C} cy={C} r={91} fill="#FFFFFF" />
+        {slices.length === 1 ? (
+          <circle cx={C} cy={C} r={(R + r) / 2} fill="none" stroke={foodColor(slices[0])} strokeWidth={R - r} />
+        ) : (
+          slices.map((f, i) => (
+            <path
+              key={`${f.name}-${i}`}
+              d={slicePath(r, R, start + i * step, start + (i + 1) * step)}
+              fill={foodColor(f)}
+              stroke="#FFFFFF"
+              strokeWidth={3.5}
+              strokeLinejoin="round"
+            />
+          ))
         )}
-      </div>
+        {center && <circle cx={C} cy={C} r={25} fill={foodColor(center)} stroke="#FFFFFF" strokeWidth={4} />}
+      </svg>
     </div>
   )
 }
